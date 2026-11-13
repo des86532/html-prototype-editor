@@ -5,5 +5,13 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hpe/shared": "workspace:*",
+    "diff-match-patch": "^1.0.5"
+  },
+  "devDependencies": {
+    "@types/diff-match-patch": "^1.0.36",
+    "jsdom": "^31.0.1"
   }
 }

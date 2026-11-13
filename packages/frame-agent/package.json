@@ -5,5 +5,13 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hpe/anchoring": "workspace:*",
+    "@hpe/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "jsdom": "^31.0.1"
   }
 }

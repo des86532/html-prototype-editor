@@ -17,7 +17,6 @@ const finite = z.number().finite();
 export const RectSchema = z.object({ x: finite, y: finite, w: finite, h: finite });
 
 const selectorString = z.string().max(MESSAGE_LIMITS.maxSelectorLength);
-const quoteString = z.string().max(MESSAGE_LIMITS.maxTextQuoteLength);
 
 export const AnchorSchema = z.object({
   pageId: z.string().min(1).max(512),
