@@ -154,9 +154,13 @@ test('捲動 prototype 後卡片與 pin 相對位置不變；pin 捲出可視區
   const before = await rel();
   await frame.evaluate(() => window.scrollTo(0, 80));
   await expect.poll(async () => Math.round((await rel()).py)).not.toBe(Math.round(before.py));
-  const after = await rel();
-  expect(Math.abs(after.dx - before.dx)).toBeLessThanOrEqual(2);
-  expect(Math.abs(after.dy - before.dy)).toBeLessThanOrEqual(2);
+  // 卡片的位置由 floating-ui 非同步計算，pin 移動後最多晚一個 frame 才跟上；以收斂為準（容許 ±2px）
+  await expect
+    .poll(async () => {
+      const after = await rel();
+      return Math.max(Math.abs(after.dx - before.dx), Math.abs(after.dy - before.dy));
+    })
+    .toBeLessThanOrEqual(2);
 
   await frame.evaluate(() => window.scrollTo(0, 1500));
   await expect(owner.getByTestId(`edge-${pinId}`)).toBeVisible();

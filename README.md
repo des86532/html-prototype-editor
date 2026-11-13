@@ -56,15 +56,18 @@ pnpm dev                         # web :5173、content :5174、api :5175
 pnpm lint && pnpm typecheck && pnpm build
 pnpm test            # vitest：shared、anchoring、frame-agent、content、api（需 PostgreSQL，預設 hpe_test）、exporter、export-viewer、web
 pnpm test:security   # Playwright：惡意向量 V1–V16、V18、V23（content 端）、V24（M1 門檻，三種瀏覽器）
-pnpm test:export     # Playwright：單檔 HTML 離線、V19/V21/V22
-pnpm test:e2e        # Playwright：完整 stack（匯入 → Figma 式留言 → RWD → 分享 → 訪客 → 解決 → 匯出 → 往返）
+pnpm test:export     # Playwright（三種瀏覽器）：單檔 HTML 離線、V19/V21/V22
+pnpm test:e2e        # Playwright（三種瀏覽器）：完整 stack — 匯入 → Figma 式留言 → RWD → 分享 → 訪客 → 解決 → 匯出 → 往返；
+                     # 另含效能預算（200 pin）與品質預算（axe、鍵盤操作、Viewer 可互動時間、近 50 MB zip 匯入）
 ```
 
 `test:e2e` 會自己建置並啟動 API、content server 與主應用（獨立 port 5183–5185、資料庫 `hpe_e2e`，每次重建 schema）。加上 `E2E_REUSE=1` 可沿用已在跑的 stack，`E2E_VERBOSE=1` 顯示各服務輸出。
 
 ## 已知限制
 
+- axe 檢查 0 個 critical（規格要求）；Viewer 仍有 `color-contrast`、`label-content-name-mismatch` 兩項 serious（pin 的可見文字是縮寫與編號，與 aria-label 不一致）尚未處理。
 - 尚未實作 P1：拖曳 pin 重新定位（協定中的 `describeAt` / `described` 與 `PATCH /threads/:id/anchor`）、版本管理與評論遷移、版本並排比較、PNG/PDF render-worker。
 - iframe 內的鍵盤事件不會到達 parent，所以 `C`、`J`/`K`、`R`、`Esc` 等快捷鍵只在焦點位於主應用時有效。
 - `S3Storage` 只以假 client 做過單元測試（本機沒有 MinIO）。
+- **Safari／WebKit**：沒有 per-site iframe process，prototype 內的無窮迴圈會凍結整個分頁，watchdog 無法介入（security suite 的 V10 在 WebKit 以 skip 標示）；另外 WebKit 的 `connect-src 'self'` 在沙箱文件內不命中同 host，所以 content server 會額外列出該 contentKey 自己的 origin。詳見規格 Risks。
 - V9（frame 自行導向外部網址）有殘餘風險：遮罩出現前（≤ 1.5 秒）外部頁面可能短暫顯示，外部伺服器可能收到一次請求。

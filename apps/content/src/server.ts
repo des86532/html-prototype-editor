@@ -94,6 +94,8 @@ export function createContentServer(opts: ContentServerOptions): Server {
     const norm = normalizeRequestPath(req.url ?? '/');
     if (!norm) return notFound(res);
 
+    // key 與 baseDomain 都已驗證，可以安全地組成 origin
+    const selfOrigin = `${/localhost|127\.0\.0\.1/.test(opts.baseDomain) ? 'http' : 'https'}://${key}.${opts.baseDomain}`;
     const version = await opts.resolver.resolve(key);
     if (!version) return notFound(res);
 
@@ -112,7 +114,7 @@ export function createContentServer(opts: ContentServerOptions): Server {
 
     const isDoc = isDocumentPath(path);
     const headers = isDoc
-      ? documentHeaders(contentType, version.cdnAllowlist, headerOpts)
+      ? documentHeaders(contentType, version.cdnAllowlist, headerOpts, selfOrigin)
       : assetHeaders(contentType, headerOpts);
 
     if (req.method === 'HEAD') return send(res, 200, headers);

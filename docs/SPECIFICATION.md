@@ -481,7 +481,7 @@ export type FrameToParent =
 |---|---|---|
 | frame 自身導航到外部頁面做釣魚（V9） | 中 | 用 ready 逾時加遮罩、固定的「不受信任內容」標示、擋掉 `allow-popups` 和 top navigation。**殘餘**：遮罩出現前（≤ 1.5 秒）外部頁面可能短暫顯示，外部伺服器也會收到一次請求（可以拿到審閱者 IP）。 |
 | WebRTC、DNS prefetch 繞過 CSP 外送 | 低 | opaque origin 裡沒有敏感資料（comment 和身分都不進 frame），能外送的只有 IP 和行為。**殘餘**：已記錄在案，之後可以評估 `webrtc 'block'` 這類 CSP 指令的瀏覽器支援度。 |
-| 瀏覽器在 sandbox 或 CSP 實作上的差異或漏洞 | 中 | 三種瀏覽器都進 CI；縱深防禦（跨 site + sandbox 屬性 + CSP sandbox header + 不傳機密給 frame），任一層失效其他層仍在。 |
+| 瀏覽器在 sandbox 或 CSP 實作上的差異或漏洞 | 中 | 三種瀏覽器都進 CI；縱深防禦（跨 site + sandbox 屬性 + CSP sandbox header + 不傳機密給 frame），任一層失效其他層仍在。**實測差異（security suite）**：(1) WebKit 在 opaque origin 文件裡不讓 `connect-src 'self'` 命中同一個 host，所以實作的 `connect-src` 是 `'self' https://{contentKey}.{base}`（效果相同、跨瀏覽器成立）；(2) WebKit 的 `document.cookie` 在 opaque origin 回傳空字串而不是丟 `SecurityError`，同樣讀不到任何 cookie；(3) **WebKit 沒有 per-site iframe process，V10（`while(true){}`）會凍結整個分頁**，watchdog 無法執行，Safari 上這是殘餘風險，只能靠「不開未知來源的 prototype」與提示緩解；(4) 直接開 content URL 時，Firefox／WebKit 對 `Permissions-Policy` 的 camera／microphone 行為與 Chromium 不同，實際情境（iframe + `allow=""`）三個瀏覽器都被拒絕。 |
 | 錨點漂移（SPA 大量動態 DOM、自動生成的 class） | 中 | 多組 selector 加 fingerprint 加信心分數；UI 誠實顯示 `fuzzy`/`fallback`；鼓勵加 `data-comment-anchor`；`hidden` 狀態附 stateHint。P2 做互動路徑錄製。 |
 | opaque origin 造成 prototype 相容性下降 | 中 | 提供 storage/cookie/dialog polyfill、CDN 白名單、匯入報告預先警告、相容性文件。**殘餘**：依賴 IndexedDB、Service Worker 或跨域 API 的 prototype 無法完整運作。 |
 | render-worker 在伺服器執行不受信任程式碼（RCE、SSRF） | 高 | 排到 P1，獨立容器、egress 全封鎖、資源上限、非 root；MVP 不提供伺服器端渲染。 |

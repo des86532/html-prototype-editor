@@ -9,6 +9,7 @@ import {
 } from 'react';
 import {
   DEVICE_PRESETS,
+  chunkBySize,
   FRAME_TIMINGS,
   MESSAGE_LIMITS,
   PROTOCOL_VERSION,
@@ -281,12 +282,13 @@ export function PrototypeViewer({
       todo.push({ threadId: DRAFT_ID, anchor: draft.anchor });
     }
     lastDraftRef.current = draft;
-    for (let i = 0; i < todo.length; i += MESSAGE_LIMITS.maxAnchorsPerRequest) {
+    // 依序列化大小切批：訊息超過 64 KB 會被 agent 丟棄，評論多的頁面不能只靠筆數切。
+    for (const anchors of chunkBySize(todo)) {
       send({
         v: PROTOCOL_VERSION,
         type: 'resolveAnchors',
         requestId: String(++requestSeq.current),
-        anchors: todo.slice(i, i + MESSAGE_LIMITS.maxAnchorsPerRequest),
+        anchors,
       });
     }
     send({

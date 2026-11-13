@@ -10,6 +10,7 @@ import base from '../../playwright.config';
 export default defineConfig({
   ...base,
   testDir: '.',
+  testIgnore: [],
   testMatch: /.*\.spec\.ts/,
   reporter: [['list']],
   // trace 的 DOM snapshot 會對每個 frame 執行腳本；V10 把 frame 卡死時，snapshot 會永遠等不到回應。

@@ -26,9 +26,19 @@ export function sanitizeOrigins(origins: readonly string[]): string[] {
   return [...out];
 }
 
-export function buildContentCsp(cdnAllowlist: readonly string[], appOrigin: string): string {
+/**
+ * @param selfOrigin 這個 contentKey 自己的 origin（`scheme://{key}.{base}`），已由 contentKeyFromHost 驗證過。
+ *   WebKit 在 opaque origin（CSP sandbox）文件裡不讓 `connect-src 'self'` 命中同一個 host，prototype 自己的
+ *   `fetch('/data.json')` 會被擋；明確列出自己的 origin 是效果相同、但跨瀏覽器都成立的寫法。
+ */
+export function buildContentCsp(
+  cdnAllowlist: readonly string[],
+  appOrigin: string,
+  selfOrigin?: string,
+): string {
   const cdns = sanitizeOrigins(cdnAllowlist);
   const ancestors = sanitizeOrigins([appOrigin]);
+  const self = selfOrigin ? sanitizeOrigins([selfOrigin]) : [];
   if (ancestors.length === 0)
     throw new Error(`invalid APP_ORIGIN for frame-ancestors: ${appOrigin}`);
   const list = (...base: string[]) => [...base, ...cdns].join(' ');
@@ -40,7 +50,7 @@ export function buildContentCsp(cdnAllowlist: readonly string[], appOrigin: stri
     "img-src 'self' data: blob:",
     `font-src ${list("'self'", 'data:')}`,
     "media-src 'self' data: blob:",
-    "connect-src 'self'",
+    `connect-src ${["'self'", ...self].join(' ')}`,
     "frame-src 'self'",
     "worker-src 'self' blob:",
     "object-src 'none'",
@@ -78,10 +88,11 @@ export function documentHeaders(
   contentType: string,
   cdnAllowlist: readonly string[],
   opts: HeaderOptions,
+  selfOrigin?: string,
 ): HeaderMap {
   return {
     'Content-Type': contentType,
-    'Content-Security-Policy': buildContentCsp(cdnAllowlist, opts.appOrigin),
+    'Content-Security-Policy': buildContentCsp(cdnAllowlist, opts.appOrigin, selfOrigin),
     'Cross-Origin-Resource-Policy': 'same-site',
     ...commonHeaders(opts),
   };

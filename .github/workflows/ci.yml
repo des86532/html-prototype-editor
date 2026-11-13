@@ -31,12 +31,12 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium firefox webkit
       - run: pnpm test:security
       - run: pnpm test:export
-      - name: e2e (chromium)
+      - name: e2e
         env:
           E2E_DATABASE_URL: postgres://hpe:hpe@localhost:5432/hpe_e2e
         run: |
           psql postgres://hpe:hpe@localhost:5432/hpe_test -c "CREATE DATABASE hpe_e2e"
-          pnpm test:e2e --project=chromium
+          pnpm test:e2e
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { initials, pinColor, FRAME_TIMINGS } from '@hpe/shared';
 import { Pin, PinBox, pinAriaLabel } from './Pin';
 import { PinPreview } from './PinPreview';
@@ -41,7 +41,7 @@ interface SlotProps {
   hoverDelayMs: number;
 }
 
-function PinSlot({
+function PinSlotImpl({
   pin,
   inView,
   open,
@@ -113,6 +113,49 @@ function PinSlot({
     </>
   );
 }
+
+const sameRect = (a: PinItem['box'], b: PinItem['box']) =>
+  a === b || (!!a && !!b && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h);
+
+/** pin 的呈現資料是否相同（buildPins 每次 geometry 都會建新物件，所以比內容而不是 reference）。 */
+function samePin(a: PinItem, b: PinItem): boolean {
+  return (
+    a === b ||
+    (a.id === b.id &&
+      a.number === b.number &&
+      a.kind === b.kind &&
+      a.anchorStatus === b.anchorStatus &&
+      a.draft === b.draft &&
+      a.resolved === b.resolved &&
+      a.point.x === b.point.x &&
+      a.point.y === b.point.y &&
+      sameRect(a.box, b.box) &&
+      a.author === b.author &&
+      a.summary.authorName === b.summary.authorName &&
+      a.summary.createdAt === b.summary.createdAt &&
+      a.summary.body === b.summary.body &&
+      a.summary.replyCount === b.summary.replyCount)
+  );
+}
+
+/**
+ * 捲動時每個 geometry 訊息都會重算所有 pin；200 個 pin 時只讓位置真的改變的 slot 重新繪製（規格效能預算 < 16 ms）。
+ * `renderCard` 只有開啟中的 slot 會用到，其他 slot 不因它的 identity 改變而重繪。
+ */
+const PinSlot = memo(
+  PinSlotImpl,
+  (a, b) =>
+    a.inView === b.inView &&
+    a.open === b.open &&
+    a.hoverDelayMs === b.hoverDelayMs &&
+    a.boundary === b.boundary &&
+    a.viewport.w === b.viewport.w &&
+    a.viewport.h === b.viewport.h &&
+    a.onPinClick === b.onPinClick &&
+    a.onEdgeClick === b.onEdgeClick &&
+    (!a.open || a.renderCard === b.renderCard) &&
+    samePin(a.pin, b.pin),
+);
 
 /**
  * 蓋在 frame 上的 overlay。`pointer-events: none`，只有 pin、卡片與邊緣箭頭接收 pointer，

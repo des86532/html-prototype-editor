@@ -54,3 +54,32 @@ export class TokenBucket {
     return true;
   }
 }
+
+/**
+ * 把項目切成多批，使每批序列化後（含外層訊息的固定開銷）不超過 `budgetBytes`，且不超過 `maxItems` 筆。
+ * parent → frame 的 `resolveAnchors` 也受 64 KB 訊息上限約束（agent 端同樣會丟棄超限訊息），
+ * 所以評論很多的頁面不能只靠筆數切批。單一項目本身超過上限時仍會獨立成一批（由接收端丟棄）。
+ */
+export function chunkBySize<T>(
+  items: readonly T[],
+  opts: { budgetBytes?: number; maxItems?: number; overheadBytes?: number } = {},
+): T[][] {
+  const budget = opts.budgetBytes ?? Math.floor(MESSAGE_LIMITS.maxBytes * 0.75);
+  const maxItems = opts.maxItems ?? MESSAGE_LIMITS.maxAnchorsPerRequest;
+  const overhead = opts.overheadBytes ?? 200;
+  const out: T[][] = [];
+  let cur: T[] = [];
+  let size = overhead;
+  for (const item of items) {
+    const n = messageByteSize(item) + 1; // 逗號
+    if (cur.length > 0 && (size + n > budget || cur.length >= maxItems)) {
+      out.push(cur);
+      cur = [];
+      size = overhead;
+    }
+    cur.push(item);
+    size += n;
+  }
+  if (cur.length > 0) out.push(cur);
+  return out;
+}

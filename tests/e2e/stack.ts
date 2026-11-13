@@ -29,6 +29,8 @@ export const E2E_ENV = {
   SESSION_SECRET: 'e2e-session-secret-e2e-session-secret',
   STORAGE_DRIVER: 'fs',
   NODE_ENV: 'test',
+  // perf.spec 需要一次建立 200 則討論串；限流本身由 apps/api 的單元測試驗證
+  RATE_LIMIT_SCALE: '20',
 } as const;
 
 export interface StackState {
@@ -97,10 +99,11 @@ export async function startStack(): Promise<StackState> {
   ) {
     run('pnpm', ['--filter', '@hpe/export-viewer', 'build'], env);
   }
+  // 主應用一律用 production 建置（NODE_ENV=test 會把 React 的開發版包進 bundle，效能數字會失真）
   run(
     'pnpm',
     ['--filter', '@hpe/web', 'exec', 'vite', 'build', '--outDir', 'dist-e2e', '--emptyOutDir'],
-    env,
+    { ...env, NODE_ENV: 'production' },
   );
 
   const procs = [

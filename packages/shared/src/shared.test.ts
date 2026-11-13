@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   TokenBucket,
+  chunkBySize,
+  messageByteSize,
   buildPath,
   initials,
   matchesFilters,
@@ -88,5 +90,26 @@ describe('helpers', () => {
     expect(matchesFilters(t, DEFAULT_THREAD_FILTERS)).toBe(true);
     expect(matchesFilters(t, { ...DEFAULT_THREAD_FILTERS, width: 768 })).toBe(false);
     expect(matchesFilters(t, { ...DEFAULT_THREAD_FILTERS, tag: 'bug', authorId: 'g1' })).toBe(true);
+  });
+});
+
+describe('chunkBySize', () => {
+  it('keeps every batch under the 64 KB message limit even when item count is below the count cap', () => {
+    const items = Array.from({ length: 200 }, (_, i) => ({
+      threadId: `t${i}`,
+      pad: 'x'.repeat(700),
+    }));
+    const batches = chunkBySize(items);
+    expect(batches.length).toBeGreaterThan(1);
+    expect(batches.flat()).toHaveLength(200);
+    for (const b of batches) {
+      expect(
+        messageByteSize({ v: 1, type: 'resolveAnchors', requestId: '1', anchors: b }),
+      ).toBeLessThan(65_536);
+    }
+  });
+  it('splits by item cap and keeps order', () => {
+    const batches = chunkBySize([1, 2, 3, 4, 5], { maxItems: 2 });
+    expect(batches).toEqual([[1, 2], [3, 4], [5]]);
   });
 });

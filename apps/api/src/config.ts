@@ -41,6 +41,18 @@ export const DEFAULT_RATE_LIMITS: RateLimitConfig = {
   cspReport: { capacity: 100, refillPerSecond: 5 },
 };
 
+/** `RATE_LIMIT_SCALE`：把所有限流的容量與補充速度同乘一個倍數（e2e／壓力測試用；預設 1）。 */
+export function scaleRateLimits(base: RateLimitConfig, scale: number): RateLimitConfig {
+  if (!Number.isFinite(scale) || scale <= 0) throw new Error(`invalid RATE_LIMIT_SCALE: ${scale}`);
+  if (scale === 1) return base;
+  return Object.fromEntries(
+    Object.entries(base).map(([k, r]) => [
+      k,
+      { capacity: Math.ceil(r.capacity * scale), refillPerSecond: r.refillPerSecond * scale },
+    ]),
+  ) as RateLimitConfig;
+}
+
 export interface Config {
   appOrigin: string;
   apiOrigin: string;
@@ -140,7 +152,7 @@ export function loadConfig(env: Env = process.env): Config {
     internalToken,
     secureCookies: appOrigin.startsWith('https://'),
     trustProxy: bool(env.TRUST_PROXY, false),
-    rateLimits: DEFAULT_RATE_LIMITS,
+    rateLimits: scaleRateLimits(DEFAULT_RATE_LIMITS, Number(env.RATE_LIMIT_SCALE ?? 1)),
     exportShellPath: resolveFromRoot(
       env.EXPORT_SHELL_PATH ?? 'packages/export-viewer/dist/index.html',
     ),
