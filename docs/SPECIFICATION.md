@@ -36,7 +36,7 @@
 
 ```
 ┌──────────────────────────── app.example.com（受信任）────────────────────────────┐
-│  React SPA：專案管理 / Viewer / Comment Sidebar / Pin Overlay / Export            │
+│  React SPA：專案管理 / Viewer / Pin Overlay + Thread Popover / 留言面板 / Export  │
 │  CSP: script-src 'self'; frame-src https://*.protousercontent.net; frame-ancestors 'none' │
 │                                                                                  │
 │   ┌───────── <iframe sandbox="allow-scripts" allow="" referrerpolicy="no-referrer"> ─────────┐
@@ -62,7 +62,7 @@
 | D3 | content server 回應帶 **CSP `sandbox allow-scripts` header** | 就算有人直接用網址開 content URL（沒有 iframe 的 sandbox 屬性），沙箱照樣生效。這是縱深防禦。 | 只靠 iframe 屬性：直接開網址時會失守。 |
 | D4 | 預設**離線嚴格模式**：`connect-src 'self'`，`img-src`/`font-src` 只允許 `'self' data: blob:`；外部 CDN 由擁有者從預設清單中逐一勾選開放 | 擋住 beacon、fetch、CSS `url()` 這類資料外送；匯入時的分析器會列出被擋掉的外部資源，讓擁有者決定。 | 全開：等於讓 prototype 追蹤審閱者的 IP 和行為。 |
 | D5 | **postMessage 通道一律視為不受信任**：frame 傳來的訊息全部過 zod schema、大小上限和頻率上限；**comment 內文、使用者身分、token 永遠不送進 frame** | agent 和 prototype script 在同一個 JS realm，prototype 能攔截 MessagePort、也能偽造訊息，所以 agent 本身無法被驗證。安全邊界只能放在 parent。 | 用 MessageChannel 加 nonce「認證」agent：做不到真正的認證，只會給人錯誤的安全感。 |
-| D6 | **Pin 畫在 parent 的 overlay**，agent 只回報幾何資訊（rect） | comment UI 和內容都留在受信任的 context，prototype 的 CSS/JS 刪不掉、改不了、讀不到 pin。 | 在 frame 內用 closed shadow DOM 畫 pin：捲動自然同步，但 prototype 能刪掉它，comment 內容也會暴露。 |
+| D6 | **Pin、討論串卡片（ThreadPopover）與 hover 預覽都畫在 parent 的 overlay**，agent 只回報幾何資訊（rect） | comment UI 和內容都留在受信任的 context，prototype 的 CSS/JS 刪不掉、改不了、讀不到 pin。卡片跟隨 pin 定位，達成 Figma 式「留言就在標示處」。 | 在 frame 內用 closed shadow DOM 畫 pin：捲動自然同步，但 prototype 能刪掉它，comment 內容也會暴露。 |
 | D7 | **混合錨點**：多組 selector 加上元素內相對偏移，再加文件座標做 fallback，並附信心分數 | 跨 RWD 寬度、跨版本都要能活下來；資料模型對齊 W3C Web Annotation（`CssSelector`、`XPathSelector`、`TextQuoteSelector`），匯出 JSON 可以和其他工具互通。 | 只存百分比座標：一縮放就錯位。只存 CSS path：DOM 一改就斷。 |
 | D8 | 前端用 **Vite + React 19 + TypeScript (strict) + Tailwind CSS v4 + Zustand + TanStack Query/Router** | 截圖、Playwright、Markdown/sanitize 的生態完整；單檔匯出 viewer 可以用 `vite-plugin-singlefile` 從同一份 code 建置。 | Vue 3 也可行，換掉不影響架構；選 React 只是因為生態和匯出 viewer 共用元件比較方便。 |
 | D9 | 後端用 **Node 22 + Fastify + Drizzle ORM + PostgreSQL + S3 相容儲存（開發用 MinIO 或本機 FS adapter）**，以 pnpm monorepo 管理 | 型別（`packages/shared`）前後端共用；content server 是獨立 process，綁獨立網域。 | 純前端 local-first（IndexedDB）：做不到「傳連結給使用者留言」這個核心流程，最多當作匯出 viewer 的唯讀模式。 |
@@ -141,37 +141,70 @@ require-trusted-types-for 'script'
 |---|---|---|
 | `exact` | 前三種 selector 命中，且 fingerprint ≥ 0.9 | 一般 pin |
 | `fuzzy` | 靠文字或 fingerprint 命中，0.6 ≤ 信心 < 0.9 | pin 加虛線框，標示「位置可能有變」 |
-| `hidden` | 找到元素，但 `display:none`、bbox 為 0 或在關閉的 modal 裡 | 不畫 pin；sidebar 標示「目前狀態不可見」，附 stateHint |
+| `hidden` | 找到元素，但 `display:none`、bbox 為 0 或在關閉的 modal 裡 | 不畫 pin；留言面板標示「目前狀態不可見」，附 stateHint |
 | `fallback` | 元素找不到，退回座標 | 灰色 pin 加警告 |
-| `orphaned` | 頁面不存在或座標超出文件 | 只出現在 sidebar 的「孤兒評論」 |
+| `orphaned` | 頁面不存在或座標超出文件 | 只出現在留言面板的「孤兒評論」 |
 
 **RWD 與幾何同步**
 - 裝置預設：Desktop 1440、Laptop 1280、Tablet 768、Mobile 390、Mobile 375，也可自訂。iframe 用實際寬度渲染，外層用 `transform: scale()` 縮放到符合畫面，overlay 套同一個 scale。
 - agent 用 `ResizeObserver`、`MutationObserver`、`scroll`（capture，同時涵蓋內部捲動容器）和 `requestAnimationFrame` 節流，送出 `geometry`：frame viewport 座標系下的 `rects: Record<threadId, Rect | null>`。parent 依 rect 和 scale 定位 pin；不在可視區的 pin 改在邊緣顯示指示箭頭。
-- 每則評論記錄建立時的 breakpoint，sidebar 可以篩選「只看目前寬度」或「全部」。
+- 每則評論記錄建立時的 breakpoint，留言面板與畫面 pin 都可以篩選「只看目前寬度」或「全部」。
+
+**評論呈現（Figma 式定點留言）**
+- **主要呈現是 pin 加浮動卡片**。每則討論串在畫面上是一個 pin，討論內容顯示在錨定於 pin 旁的卡片（`ThreadPopover`）。留言列表（留言面板）不再是主要閱讀介面。
+- **Pin 外觀**：圓形氣泡，尾巴指向標示點，顯示發起者名字縮寫（色彩依作者 id hash 從 8 色盤選一）和專案內編號 `#12`。直徑 28px（scale 前的螢幕 px，**不隨 iframe scale 縮放**）。
+  - 區域評論額外畫出半透明框。
+  - 文字評論額外畫出文字高亮。
+  - 狀態樣式沿用錨點狀態表：`fuzzy` 用虛線外框，`fallback` 用灰色。
+- **Pin 位置公式**：pin 錨點 = `(rect.x + elementOffset.x * rect.w, rect.y + elementOffset.y * rect.h) * scale + iframe 在 viewer 中的 offset`，其中 `rect` 來自 agent 的 `geometry`。
+  - 區域評論：pin 放在區域框的右上角。
+  - 文字評論：pin 放在選取範圍最後一個 client rect 的右上角。
+- **建立流程**（Comment 模式）：
+  1. 使用者單擊，pin 立即出現在點擊位置，狀態為草稿（半透明）。
+  2. 同時在 pin 旁開啟 inline `Composer`（同一張 `ThreadPopover`，只有輸入框和「送出」）。
+  3. 送出後呼叫 API 建立 thread，pin 轉為正式狀態，卡片保持開啟並顯示第一則留言。
+  4. 送出空內容、按 `Esc`、或點擊卡片外部，都直接捨棄草稿，不寫入 API。
+  5. 草稿存在時再單擊其他位置：捨棄舊草稿，在新位置建立草稿。
+- **閱讀流程**：
+  - 滑鼠移到 pin 上 300ms 後顯示 hover 預覽卡（作者、時間、第一則留言前 2 行、回覆數）。
+  - 點擊 pin 開啟 `ThreadPopover`，內容依序為：完整討論串、回覆輸入框、Resolve 按鈕、標籤、`…` 選單（編輯、刪除、複製連結）。
+  - 同一時間最多只開一張卡片。
+- **卡片定位**：用 `@floating-ui/react`，`placement: 'right-start'`，middleware 依序為 `offset(8)`、`flip()`、`shift({ padding: 8 })`，邊界為 viewer 容器。寬 320px，最大高度 60vh，超過時內部捲動。
+  - 收到 `geometry` 更新時，pin 和卡片一起重新定位，捲動時跟著移動。
+  - pin 捲出可視區時，卡片隱藏，pin 改用既有的邊緣指示箭頭顯示；點箭頭會送 `scrollToAnchor` 並重新顯示卡片。
+- **安全邊界不變**：pin、卡片、hover 預覽全都渲染在 parent 的 overlay，內容一律用 `textContent` 或 sanitize 過的 markdown 渲染，**不送進 iframe**（對應 D5、D6）。
+- **顯示控制**：
+  - Toolbar 提供「顯示留言」切換，快捷鍵 `Shift+C`。關閉後隱藏所有 pin 和卡片。
+  - Toolbar 提供「顯示已解決」切換，預設關閉，所以 resolved 的 pin 預設隱藏。
+- **在 Interact 模式**：pin 仍然顯示，overlay 只有 pin 和卡片本身接收 pointer（其餘區域 `pointer-events: none`），因此點擊 pin 會開卡片，點其他地方會照常操作 prototype。
+- **留言面板（原 sidebar）**：預設收合，由 toolbar 按鈕開啟，用途如下：
+  - 列出所有討論串，套用既有篩選（狀態、頁面、寬度、作者、標籤）。
+  - 點擊列表項目：切換到對應頁面和寬度 preset，送 `scrollToAnchor`，再開啟該 pin 的卡片。
+  - `hidden` 和 `orphaned` 狀態的討論串只能從面板查看與回覆，面板內直接展開討論內容。
+- **P1，移動 pin**：作者或擁有者可以拖曳 pin 重新指定位置。parent 送 `describeAt`，agent 回 `described`（新 Anchor），使用者放開後經 API `PATCH /threads/:id/anchor` 更新。
 
 **互動模式**
 - 預設是 **Interact 模式**，可以正常操作 prototype。
 - 按 `C` 進入 **Comment 模式**：agent 在 window 上以 capture phase 攔截 `pointerdown`、`click`、`mouseover` 並 `preventDefault`，同時回報 hover rect，由 parent 畫出高亮框。
-  - 單擊是元素 pin。
+  - 單擊建立元素 pin，並在 pin 旁開啟輸入卡片（見「評論呈現」）。
   - 拖曳是區域評論，錨定在包住整個區域的最近共同祖先。
   - 選取文字後點「評論」，以 `textQuote` 為主錨點。
   - 按住 `Alt` 可以暫時回到互動。
-- 快捷鍵：`C` 切換、`Esc` 取消、`J`/`K` 上一則或下一則、`R` 標記解決。pin 是 parent 裡的 `<button aria-label="評論 #12：…">`，sidebar 完整支援鍵盤操作。
+- 快捷鍵：`C` 切換 Comment 模式、`Shift+C` 顯示或隱藏留言、`Esc` 關閉卡片或捨棄草稿、`J`/`K` 上一則或下一則（同時開啟該 pin 的卡片）、`R` 標記解決。pin 是 parent 裡的 `<button aria-label="評論 #12：…" aria-expanded>`，卡片為 `role="dialog"`，開啟時焦點移入、`Esc` 關閉後焦點回到 pin；留言面板完整支援鍵盤操作。
 
 ### 4. 功能完善建議（優先級）
 
 | 優先級 | 功能 |
 |---|---|
-| **P0（MVP）** | 匯入 html/zip/貼上；匯入安全報告（列出 script、外部資源、表單、密碼欄位、`meta refresh`、iframe）；Viewer、裝置預設、多頁導覽；三種評論（元素、區域、文字）；討論串、回覆、Open/Resolved 狀態；分類標籤（Bug／文案／設計／問題／建議）；篩選（狀態、頁面、寬度、作者、標籤）；分享連結（viewer/commenter 角色、到期、撤銷）；訪客留名；匯出 JSON、Markdown、CSV、單檔互動 HTML、Review Package ZIP |
-| **P1** | 版本管理（上傳新版本並自動遷移未解決評論，附 drift 狀態）；版本並排比較；@mention 與 Email 通知；優先級欄位；未讀標記；擁有者白名單 CDN；匯出 PNG/PDF（render worker）；評論附截圖裁切 |
+| **P0（MVP）** | 匯入 html/zip/貼上；匯入安全報告（列出 script、外部資源、表單、密碼欄位、`meta refresh`、iframe）；Viewer、裝置預設、多頁導覽；三種評論（元素、區域、文字），以 Figma 式 pin 加錨定卡片呈現（建立、閱讀、回覆都在標示處完成）；討論串、回覆、Open/Resolved 狀態；分類標籤（Bug／文案／設計／問題／建議）；篩選（狀態、頁面、寬度、作者、標籤）；留言面板（總覽與篩選）；分享連結（viewer/commenter 角色、到期、撤銷）；訪客留名；匯出 JSON、Markdown、CSV、單檔互動 HTML、Review Package ZIP |
+| **P1** | 拖曳 pin 重新定位；版本管理（上傳新版本並自動遷移未解決評論，附 drift 狀態）；版本並排比較；@mention 與 Email 通知；優先級欄位；未讀標記；擁有者白名單 CDN；匯出 PNG/PDF（render worker）；評論附截圖裁切 |
 | **P2** | 即時協作（SSE/WebSocket 推送新評論、presence 游標）；推送到 GitHub Issues、Jira、Linear；Slack webhook；AI 彙整回饋摘要和去重；匯入時把白名單 CDN 資源 vendor 化；URL 匯入（伺服器抓取並防 SSRF）；互動路徑錄製（重播到 hidden 狀態）；瀏覽器擴充功能 |
 
 ### 5. 匯出規格
 
 | 格式 | 內容 | 安全處理 |
 |---|---|---|
-| **單檔互動 HTML**（`review-{slug}-v{n}-{date}.html`） | 用 `vite-plugin-singlefile` 建置的 export-viewer shell（sidebar、pin、裝置切換、篩選，唯讀），所有頁面 HTML、inline 化的資源和 annotations JSON 都包在一個檔案裡。prototype 以 `<iframe sandbox="allow-scripts" srcdoc>` 載入，agent 也 inline。多頁導覽由 agent 攔截點擊，請 shell 換掉 `srcdoc`。 | shell 的 meta CSP 是 `default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; form-action 'none'`。srcdoc 會繼承這份 CSP，所以匯出檔**完全無法連網**。comment JSON 放在 `<script type="application/json">`，並跳脫 `<`、`>`、`&`、`U+2028`、`U+2029` 為 `\uXXXX`；shell 一律用 `textContent` 渲染。檔案超過 20 MB 時提醒。 |
+| **單檔互動 HTML**（`review-{slug}-v{n}-{date}.html`） | 用 `vite-plugin-singlefile` 建置的 export-viewer shell（pin 加錨定卡片、留言面板、裝置切換、篩選，唯讀），所有頁面 HTML、inline 化的資源和 annotations JSON 都包在一個檔案裡。prototype 以 `<iframe sandbox="allow-scripts" srcdoc>` 載入，agent 也 inline。多頁導覽由 agent 攔截點擊，請 shell 換掉 `srcdoc`。 | shell 的 meta CSP 是 `default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; form-action 'none'`。srcdoc 會繼承這份 CSP，所以匯出檔**完全無法連網**。comment JSON 放在 `<script type="application/json">`，並跳脫 `<`、`>`、`&`、`U+2028`、`U+2029` 為 `\uXXXX`；shell 一律用 `textContent` 渲染。檔案超過 20 MB 時提醒。 |
 | **JSON**（`annotations.json`） | 帶 `$schema` 版本號；`items[]` 相容 W3C Web Annotation（`target.selector[]`、`body[]`），並延伸 `x-hpe:` 欄位（狀態、標籤、breakpoint、編號） | JSON.stringify，不需額外處理 |
 | **Markdown** | 依頁面分組，編號和 pin 一致；每則包含作者、時間、狀態、標籤、元素描述（tag 加文字片段加 selector）、breakpoint、回覆串 | 跳脫 Markdown 控制字元；內文包在引用區塊；不輸出原始 HTML |
 | **CSV** | 一列一則討論串，可以匯入 Jira 或試算表 | 防公式注入：開頭是 `=`、`+`、`-`、`@`、Tab 或 CR 的儲存格前面加 `'`；RFC 4180 引號 |
@@ -192,9 +225,9 @@ html-prototype-editor/
 │  │     ├─ features/
 │  │     │  ├─ projects/               # ProjectList, ProjectSettings
 │  │     │  ├─ import/                 # ImportDialog, SecurityReportPanel, CdnAllowlistPicker
-│  │     │  ├─ viewer/                 # PrototypeViewer, SandboxFrame, DeviceToolbar, PinOverlay,
-│  │     │  │                          # HoverHighlight, FrameWatchdog, useFrameBridge
-│  │     │  ├─ comments/               # CommentSidebar, ThreadView, Composer, Filters, useThreads
+│  │     │  ├─ viewer/                 # PrototypeViewer, SandboxFrame, DeviceToolbar, PinOverlay, Pin,
+│  │     │  │                          # HoverHighlight, FrameWatchdog, useFrameBridge, usePinPosition
+│  │     │  ├─ comments/               # ThreadPopover, PinPreview, Composer, CommentPanel, Filters, useThreads
 │  │     │  ├─ share/                  # ShareDialog, GuestIdentityPrompt
 │  │     │  └─ export/                 # ExportDialog
 │  │     └─ lib/                       # apiClient, sanitize.ts(DOMPurify+TrustedTypes), markdown.ts(markdown-it html:false)
@@ -214,7 +247,7 @@ html-prototype-editor/
 │  ├─ anchoring/                       # describe.ts, resolve.ts, cssPath.ts, xpath.ts, textQuote.ts, fingerprint.ts
 │  ├─ frame-agent/                     # bridge.ts, picker.ts, geometry.ts, navGuard.ts, polyfills.ts → IIFE ≤ 15KB gz
 │  ├─ exporter/                        # json.ts, markdown.ts, csv.ts, singleFileHtml.ts, inlineAssets.ts, package.ts
-│  └─ export-viewer/                   # 單檔匯出 shell（React 精簡版，共用 PinOverlay/ThreadView）
+│  └─ export-viewer/                   # 單檔匯出 shell（React 精簡版，共用 PinOverlay/ThreadPopover/CommentPanel）
 └─ tests/
    ├─ security/vectors/*.html          # 惡意測試向量
    ├─ security/sandbox.spec.ts         # Playwright × chromium/firefox/webkit
@@ -294,6 +327,7 @@ export type ParentToFrame =
   | { v: 1; type: 'resolveAnchors'; requestId: string; anchors: { threadId: Id; anchor: Anchor }[] }
   | { v: 1; type: 'trackAnchors'; threadIds: Id[] }
   | { v: 1; type: 'scrollToAnchor'; threadId: Id }
+  | { v: 1; type: 'describeAt'; requestId: string; point: { x: number; y: number } }   // P1：拖曳 pin
   | { v: 1; type: 'ping'; seq: number };
 export type Mode = 'interact' | 'comment';
 
@@ -306,6 +340,7 @@ export type FrameToParent =
   | { v: 1; type: 'navigateRequest'; pageId: string }        // 匯出模式：請 shell 換 srcdoc
   | { v: 1; type: 'dialog'; kind: 'alert' | 'confirm' | 'prompt'; text: string }
   | { v: 1; type: 'storageSnapshot'; data: string }          // opaque，不解析
+  | { v: 1; type: 'described'; requestId: string; draft: Anchor; rect: Rect }
   | { v: 1; type: 'pong'; seq: number };
 // 注意：ParentToFrame 永遠不含 comment body / author / token
 ```
@@ -356,8 +391,8 @@ export type FrameToParent =
 **M4 評論核心（依賴 M3）**
 14. `packages/anchoring`：`describe` 和 `resolve`，加上 fingerprint 打分；用 jsdom 跑 fixture 單元測試。
 15. agent 的 picker（元素、區域、文字三種模式，capture 攔截，`Alt` 暫時穿透）和 geometry（各種 observer 加 rAF 節流）。
-16. `PinOverlay`、`HoverHighlight`；處理 scale、邊緣指示、各錨點狀態的樣式。
-17. API：threads 和 comments 的 CRUD、專案內編號、狀態、標籤；`CommentSidebar`、`ThreadView`、`Composer`、`Filters`；快捷鍵和 a11y。
+16. `PinOverlay`、`Pin`、`usePinPosition`（依 rect 加 elementOffset 加 scale 計算位置）、`HoverHighlight`、`PinPreview`；處理邊緣指示、各錨點狀態樣式、顯示留言／顯示已解決切換。
+17. API：threads 和 comments 的 CRUD、專案內編號、狀態、標籤；`ThreadPopover`（@floating-ui/react 定位、草稿 pin 與 inline Composer、跟隨捲動）、`CommentPanel`、`Filters`；快捷鍵和 a11y。
 
 **M5 匯出（依賴 M4）**
 18. `packages/exporter`：JSON（Web Annotation 相容）、Markdown、CSV（防公式注入）、Review Package ZIP；再匯入 Review Package。
@@ -372,6 +407,7 @@ export type FrameToParent =
 **M7 版本與遷移（P1）**
 24. 上傳新版本時，在新版本上執行 `resolve`（用伺服器端 jsdom，或在背景開 headless frame），把未解決的討論串帶過去並標上 `carriedFrom.resolution`。
 25. 版本並排比較檢視。
+25a. 拖曳 pin 重新定位：`describeAt`/`described` 協定、`PATCH /threads/:id/anchor`。
 
 **M8 PNG/PDF render-worker（P1）**
 26. 建立隔離容器（見 Impact）、Playwright 截全頁圖並畫上 pin、用 pdf-lib 組 PDF；用 `export_jobs` 排程。
@@ -418,6 +454,7 @@ export type FrameToParent =
   - 只改 class 或插入節點時，`exact` + `fuzzy` ≥ 95%。
   - 元素被刪除時一定得到 `fallback` 或 `orphaned`，不會誤判成 `exact`。
 - **RWD**：同一則評論在 1440、768、390 三個寬度下，pin 中心都落在目標元素 bbox 內（e2e 斷言）。
+- **Figma 式呈現（e2e）**：在 Comment 模式點擊按鈕元素，草稿 pin 出現在點擊座標 ±2px，卡片同時開啟且輸入框取得焦點；送出後 pin 轉為正式狀態；捲動 prototype 300px 後卡片與 pin 的相對位置不變（±2px）；pin 捲出可視區時卡片隱藏、邊緣箭頭出現；按 `Esc` 捨棄空草稿後 API 沒有收到任何 POST。
 - **端到端流程**：
   1. 擁有者匯入多頁 zip。
   2. 安全報告正確列出外部資源。
@@ -426,7 +463,7 @@ export type FrameToParent =
   5. 擁有者回覆並標記解決。
   6. 匯出全部格式。
 - **匯出往返**：匯出 Review Package 再匯入後，討論串數量、內容、錨點、狀態完全一致（deep equal，忽略 ID）。
-- **單檔 HTML 離線**：以 `file://` 開啟，pin 數量等於評論數、多頁導覽正常、sidebar 篩選正常、網路請求為 0。
+- **單檔 HTML 離線**：以 `file://` 開啟，pin 數量等於評論數、多頁導覽正常、點擊 pin 會開啟卡片並顯示完整討論、留言面板篩選正常、網路請求為 0。
 - **JSON**：用 ajv 對 `$schema` 驗證通過。
 
 ### 3. 效能與品質預算
@@ -434,7 +471,7 @@ export type FrameToParent =
 - 200 個 pin 時，捲動中 geometry 更新到重新繪製 < 16 ms（Performance trace）。
 - 50 MB zip 匯入完成 < 10 秒。
 - Viewer 首次可互動 < 2.5 秒（本機）。
-- a11y：axe 檢查主應用 0 個 critical；sidebar 和 pin 能完全只用鍵盤操作。
+- a11y：axe 檢查主應用 0 個 critical；pin、討論串卡片與留言面板能完全只用鍵盤操作。
 
 ---
 
