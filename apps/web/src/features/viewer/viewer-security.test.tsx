@@ -1,8 +1,10 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FrameToParent, ParentToFrame } from '@hpe/shared';
 import { FrameGate } from './frameGate';
 import { useFrameWatchdog } from './FrameWatchdog';
+
+afterEach(cleanup);
 
 const source = {};
 const pong = (seq: number): FrameToParent => ({ v: 1, type: 'pong', seq });

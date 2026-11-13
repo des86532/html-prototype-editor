@@ -1,0 +1,12 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><script src="/_lib.js"></script></head><body>
+<iframe src="http://evil.localhost:6100/iframe-static"></iframe>
+<object data="http://evil.localhost:6100/object-static"></object>
+<embed src="http://evil.localhost:6100/embed-static">
+<script>
+  var f = document.createElement('iframe');
+  f.src = 'http://evil.localhost:6100/iframe-dynamic';
+  document.body.appendChild(f);
+  setTimeout(function () { report('result', {}); report('done'); }, 1200);
+</script>
+</body></html>

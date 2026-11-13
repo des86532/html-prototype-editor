@@ -59,6 +59,10 @@ export interface ThreadsResponse {
 export interface ThreadResponse {
   thread: Thread;
 }
+/** 所有 DELETE（project、version、thread）、logout 回 200 `{ ok: true }`（不是 204）。 */
+export interface OkResponse {
+  ok: true;
+}
 export interface DeleteCommentResponse {
   /** 刪除最後一則留言時整個 thread 一併刪除，回傳 null */
   thread: Thread | null;

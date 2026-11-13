@@ -1,0 +1,12 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><script src="/_lib.js"></script>
+<script>
+  // 在任何其他 script 之前就開始監聽（捕獲 phase），印出所有從別的 window 來的訊息。
+  var seen = [];
+  window.addEventListener('message', function (e) {
+    seen.push({ fromParent: e.source === parent, origin: e.origin, json: JSON.stringify(e.data) });
+  }, true);
+  window.onmessage = function (e) { seen.push({ fromParent: e.source === parent, origin: e.origin, json: 'onmessage:' + JSON.stringify(e.data) }); };
+  setTimeout(function () { report('messages', seen); report('done'); }, 5200);
+</script>
+</head><body>spy</body></html>

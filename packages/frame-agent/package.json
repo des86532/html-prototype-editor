@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "tsx build.ts",
+    "check-size": "tsx scripts/check-size.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

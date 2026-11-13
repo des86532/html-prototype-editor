@@ -40,7 +40,9 @@ export function useFrameWatchdog({ iframe, send, timings }: UseFrameWatchdogOpti
     setState(s);
   }, []);
   const sendRef = useRef(send);
-  sendRef.current = send;
+  useEffect(() => {
+    sendRef.current = send;
+  });
 
   const seqRef = useRef(0);
   const lastPongRef = useRef(0);
@@ -69,7 +71,6 @@ export function useFrameWatchdog({ iframe, send, timings }: UseFrameWatchdogOpti
       iframe.removeEventListener('load', onLoad);
       clearReadyTimer();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [iframe, t.readyTimeoutMs, setBoth]);
 
   // 心跳：只有在 ready / unresponsive 時 ping（unresponsive 時繼續 ping，frame 恢復就自動解除）。

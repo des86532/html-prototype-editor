@@ -1,0 +1,557 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "exportedAt": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40
+    },
+    "project": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": ["id", "name"]
+    },
+    "version": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "number": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "entryPage": {
+          "type": "string"
+        },
+        "pages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "title": {
+                "type": ["string", "null"]
+              }
+            },
+            "required": ["path", "title"]
+          }
+        }
+      },
+      "required": ["id", "number", "entryPage", "pages"]
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "const": "Annotation"
+          },
+          "motivation": {
+            "type": "string",
+            "const": "commenting"
+          },
+          "created": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "creator": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "Person"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["type", "name"]
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "selector": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "const": "CssSelector"
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["type", "value"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "const": "XPathSelector"
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["type", "value"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "const": "TextQuoteSelector"
+                        },
+                        "exact": {
+                          "type": "string"
+                        },
+                        "prefix": {
+                          "type": "string"
+                        },
+                        "suffix": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["type", "exact", "prefix", "suffix"]
+                    }
+                  ]
+                }
+              }
+            },
+            "required": ["source", "selector"]
+          },
+          "body": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "TextualBody"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "format": {
+                  "type": "string",
+                  "const": "text/plain"
+                },
+                "creator": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "Person"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["type", "name"]
+                },
+                "created": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                }
+              },
+              "required": ["type", "value", "format", "creator", "created"]
+            }
+          },
+          "x-hpe:threadId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "x-hpe:number": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          },
+          "x-hpe:status": {
+            "type": "string",
+            "enum": ["open", "resolved"]
+          },
+          "x-hpe:tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["bug", "copy", "design", "question", "suggestion"]
+            }
+          },
+          "x-hpe:breakpoint": {
+            "type": "object",
+            "properties": {
+              "width": {
+                "type": "number"
+              },
+              "preset": {
+                "type": "string"
+              }
+            },
+            "required": ["width"]
+          },
+          "x-hpe:anchor": {
+            "type": "object",
+            "properties": {
+              "pageId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "kind": {
+                "type": "string",
+                "enum": ["element", "region", "text"]
+              },
+              "viewport": {
+                "type": "object",
+                "properties": {
+                  "width": {
+                    "type": "number"
+                  },
+                  "height": {
+                    "type": "number"
+                  },
+                  "dpr": {
+                    "type": "number"
+                  },
+                  "preset": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": ["width", "height", "dpr"]
+              },
+              "selectors": {
+                "type": "object",
+                "properties": {
+                  "dataAttr": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "value": {
+                        "type": "string",
+                        "maxLength": 256
+                      }
+                    },
+                    "required": ["name", "value"]
+                  },
+                  "css": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "xpath": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "textQuote": {
+                    "type": "object",
+                    "properties": {
+                      "exact": {
+                        "type": "string",
+                        "maxLength": 256
+                      },
+                      "prefix": {
+                        "type": "string",
+                        "maxLength": 32
+                      },
+                      "suffix": {
+                        "type": "string",
+                        "maxLength": 32
+                      }
+                    },
+                    "required": ["exact", "prefix", "suffix"]
+                  },
+                  "fingerprint": {
+                    "type": "object",
+                    "properties": {
+                      "tag": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "classes": {
+                        "maxItems": 64,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "maxLength": 128
+                        }
+                      },
+                      "textHash": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "siblingIndex": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "depth": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": ["tag", "classes", "textHash", "siblingIndex", "depth"]
+                  },
+                  "elementOffset": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["x", "y"]
+                  },
+                  "regionSize": {
+                    "type": "object",
+                    "properties": {
+                      "w": {
+                        "type": "number"
+                      },
+                      "h": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["w", "h"]
+                  }
+                },
+                "required": ["fingerprint", "elementOffset"]
+              },
+              "fallback": {
+                "type": "object",
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "w": {
+                    "type": "number"
+                  },
+                  "h": {
+                    "type": "number"
+                  }
+                },
+                "required": ["x", "y", "w", "h"]
+              },
+              "stateHint": {
+                "type": "object",
+                "properties": {
+                  "hash": {
+                    "type": "string",
+                    "maxLength": 512
+                  },
+                  "inDialog": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              "snapshot": {
+                "type": "object",
+                "properties": {
+                  "tag": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 120
+                  }
+                },
+                "required": ["tag", "text"]
+              }
+            },
+            "required": ["pageId", "kind", "viewport", "selectors", "fallback", "snapshot"]
+          },
+          "x-hpe:createdBy": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "user"
+                  },
+                  "userId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 120
+                  }
+                },
+                "required": ["kind", "userId", "name"]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "guest"
+                  },
+                  "guestId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 120
+                  }
+                },
+                "required": ["kind", "guestId", "name"]
+              }
+            ]
+          },
+          "x-hpe:comments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "threadId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "author": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "user"
+                        },
+                        "userId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "name": {
+                          "type": "string",
+                          "maxLength": 120
+                        }
+                      },
+                      "required": ["kind", "userId", "name"]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "guest"
+                        },
+                        "guestId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "name": {
+                          "type": "string",
+                          "maxLength": 120
+                        }
+                      },
+                      "required": ["kind", "guestId", "name"]
+                    }
+                  ]
+                },
+                "body": {
+                  "type": "string",
+                  "maxLength": 5000
+                },
+                "createdAt": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                },
+                "editedAt": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40
+                }
+              },
+              "required": ["id", "threadId", "author", "body", "createdAt"]
+            }
+          },
+          "x-hpe:resolvedAt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "motivation",
+          "created",
+          "creator",
+          "target",
+          "body",
+          "x-hpe:threadId",
+          "x-hpe:number",
+          "x-hpe:status",
+          "x-hpe:tags",
+          "x-hpe:breakpoint",
+          "x-hpe:anchor",
+          "x-hpe:createdBy",
+          "x-hpe:comments"
+        ]
+      }
+    }
+  },
+  "required": ["$schema", "schemaVersion", "exportedAt", "project", "version", "items"],
+  "$id": "https://hpe.example/schemas/annotations.v1.json",
+  "title": "HPE annotations.json v1"
+}

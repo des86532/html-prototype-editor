@@ -1,0 +1,12 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><script src="/_lib.js"></script></head><body>
+<script>
+  // 等頁面載入完成、agent 的心跳開始之後才卡死（否則連 ready 都不會送出，watchdog 會走 left-scope 而不是 unresponsive）。
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      report('looping');
+      while (true) {}
+    }, 300);
+  });
+</script>
+</body></html>

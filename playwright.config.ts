@@ -7,6 +7,8 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: 'tests',
   testMatch: /.*\.spec\.ts/,
+  // tests/e2e 需要完整的 stack（見 tests/e2e/playwright.e2e.config.ts）；tests/security 有自己的設定檔。
+  testIgnore: ['e2e/**', 'security/**'],
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,

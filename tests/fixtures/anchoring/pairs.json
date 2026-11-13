@@ -1,0 +1,634 @@
+{
+  "viewportDefault": 1440,
+  "pairs": [
+    {
+      "id": "01-class-renamed-partial",
+      "v1": "v1/01-class-renamed-partial.html",
+      "v2": "v2/01-class-renamed-partial.html",
+      "cat": "class",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "02-class-added",
+      "v1": "v1/02-class-added.html",
+      "v2": "v2/02-class-added.html",
+      "cat": "class",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "03-class-removed",
+      "v1": "v1/03-class-removed.html",
+      "v2": "v2/03-class-removed.html",
+      "cat": "class",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "04-class-all-renamed",
+      "v1": "v1/04-class-all-renamed.html",
+      "v2": "v2/04-class-all-renamed.html",
+      "cat": "class",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "05-hash-class-churn",
+      "v1": "v1/05-hash-class-churn.html",
+      "v2": "v2/05-hash-class-churn.html",
+      "cat": "class",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "06-hash-only-classes",
+      "v1": "v1/06-hash-only-classes.html",
+      "v2": "v2/06-hash-only-classes.html",
+      "cat": "class",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "07-inline-style-changed",
+      "v1": "v1/07-inline-style-changed.html",
+      "v2": "v2/07-inline-style-changed.html",
+      "cat": "class",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "08-id-renamed",
+      "v1": "v1/08-id-renamed.html",
+      "v2": "v2/08-id-renamed.html",
+      "cat": "class",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "09-sibling-before-in-section",
+      "v1": "v1/09-sibling-before-in-section.html",
+      "v2": "v2/09-sibling-before-in-section.html",
+      "cat": "sibling",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "10-sibling-after-in-section",
+      "v1": "v1/10-sibling-after-in-section.html",
+      "v2": "v2/10-sibling-after-in-section.html",
+      "cat": "sibling",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "11-sibling-before-li",
+      "v1": "v1/11-sibling-before-li.html",
+      "v2": "v2/11-sibling-before-li.html",
+      "cat": "sibling",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "12-section-inserted-before",
+      "v1": "v1/12-section-inserted-before.html",
+      "v2": "v2/12-section-inserted-before.html",
+      "cat": "sibling",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "13-many-siblings-inserted",
+      "v1": "v1/13-many-siblings-inserted.html",
+      "v2": "v2/13-many-siblings-inserted.html",
+      "cat": "sibling",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "14-table-row-inserted",
+      "v1": "v1/14-table-row-inserted.html",
+      "v2": "v2/14-table-row-inserted.html",
+      "cat": "sibling",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "15-copy-minor",
+      "v1": "v1/15-copy-minor.html",
+      "v2": "v2/15-copy-minor.html",
+      "cat": "copy",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "16-copy-punctuation",
+      "v1": "v1/16-copy-punctuation.html",
+      "v2": "v2/16-copy-punctuation.html",
+      "cat": "copy",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "17-copy-major",
+      "v1": "v1/17-copy-major.html",
+      "v2": "v2/17-copy-major.html",
+      "cat": "copy",
+      "kind": "element",
+      "expect": [
+        "fuzzy",
+        "fallback"
+      ],
+      "target": false
+    },
+    {
+      "id": "18-whitespace-reformatted",
+      "v1": "v1/18-whitespace-reformatted.html",
+      "v2": "v2/18-whitespace-reformatted.html",
+      "cat": "copy",
+      "kind": "element",
+      "expect": [
+        "exact"
+      ],
+      "target": true
+    },
+    {
+      "id": "19-wrapped-in-div",
+      "v1": "v1/19-wrapped-in-div.html",
+      "v2": "v2/19-wrapped-in-div.html",
+      "cat": "wrap",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "20-wrapped-no-classes",
+      "v1": "v1/20-wrapped-no-classes.html",
+      "v2": "v2/20-wrapped-no-classes.html",
+      "cat": "wrap",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "21-wrapped-deep",
+      "v1": "v1/21-wrapped-deep.html",
+      "v2": "v2/21-wrapped-deep.html",
+      "cat": "wrap",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "22-unwrapped",
+      "v1": "v1/22-unwrapped.html",
+      "v2": "v2/22-unwrapped.html",
+      "cat": "wrap",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "23-deleted-button",
+      "v1": "v1/23-deleted-button.html",
+      "v2": "v2/23-deleted-button.html",
+      "cat": "deleted",
+      "kind": "element",
+      "expect": [
+        "fallback",
+        "orphaned"
+      ],
+      "target": false
+    },
+    {
+      "id": "24-deleted-li",
+      "v1": "v1/24-deleted-li.html",
+      "v2": "v2/24-deleted-li.html",
+      "cat": "deleted",
+      "kind": "element",
+      "expect": [
+        "fallback",
+        "orphaned"
+      ],
+      "target": false
+    },
+    {
+      "id": "25-deleted-section",
+      "v1": "v1/25-deleted-section.html",
+      "v2": "v2/25-deleted-section.html",
+      "cat": "deleted",
+      "kind": "element",
+      "expect": [
+        "fallback",
+        "orphaned"
+      ],
+      "target": false
+    },
+    {
+      "id": "26-deleted-similar-remains",
+      "v1": "v1/26-deleted-similar-remains.html",
+      "v2": "v2/26-deleted-similar-remains.html",
+      "cat": "deleted",
+      "kind": "element",
+      "expect": [
+        "fallback",
+        "orphaned"
+      ],
+      "target": false
+    },
+    {
+      "id": "27-deleted-all-content",
+      "v1": "v1/27-deleted-all-content.html",
+      "v2": "v2/27-deleted-all-content.html",
+      "cat": "deleted",
+      "kind": "element",
+      "expect": [
+        "orphaned"
+      ],
+      "target": false,
+      "docSize": {
+        "w": 1440,
+        "h": 10
+      }
+    },
+    {
+      "id": "28-deleted-input",
+      "v1": "v1/28-deleted-input.html",
+      "v2": "v2/28-deleted-input.html",
+      "cat": "deleted",
+      "kind": "element",
+      "expect": [
+        "fallback",
+        "orphaned"
+      ],
+      "target": false
+    },
+    {
+      "id": "29-deleted-image",
+      "v1": "v1/29-deleted-image.html",
+      "v2": "v2/29-deleted-image.html",
+      "cat": "deleted",
+      "kind": "element",
+      "expect": [
+        "fallback",
+        "orphaned"
+      ],
+      "target": false
+    },
+    {
+      "id": "30-data-anchor-restructured",
+      "v1": "v1/30-data-anchor-restructured.html",
+      "v2": "v2/30-data-anchor-restructured.html",
+      "cat": "data-attr",
+      "kind": "element",
+      "expect": [
+        "exact"
+      ],
+      "target": true
+    },
+    {
+      "id": "31-testid-moved",
+      "v1": "v1/31-testid-moved.html",
+      "v2": "v2/31-testid-moved.html",
+      "cat": "data-attr",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "32-stable-id-moved",
+      "v1": "v1/32-stable-id-moved.html",
+      "v2": "v2/32-stable-id-moved.html",
+      "cat": "data-attr",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "33-duplicate-buttons-same-structure",
+      "v1": "v1/33-duplicate-buttons-same-structure.html",
+      "v2": "v2/33-duplicate-buttons-same-structure.html",
+      "cat": "duplicate",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "34-duplicate-li-insert-before",
+      "v1": "v1/34-duplicate-li-insert-before.html",
+      "v2": "v2/34-duplicate-li-insert-before.html",
+      "cat": "duplicate",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "35-duplicate-identical-ambiguous",
+      "v1": "v1/35-duplicate-identical-ambiguous.html",
+      "v2": "v2/35-duplicate-identical-ambiguous.html",
+      "cat": "duplicate",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": false
+    },
+    {
+      "id": "36-list-reordered",
+      "v1": "v1/36-list-reordered.html",
+      "v2": "v2/36-list-reordered.html",
+      "cat": "duplicate",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "37-moved-to-footer",
+      "v1": "v1/37-moved-to-footer.html",
+      "v2": "v2/37-moved-to-footer.html",
+      "cat": "moved",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "38-nav-links-swapped",
+      "v1": "v1/38-nav-links-swapped.html",
+      "v2": "v2/38-nav-links-swapped.html",
+      "cat": "moved",
+      "kind": "element",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "39-hidden-display-none",
+      "v1": "v1/39-hidden-display-none.html",
+      "v2": "v2/39-hidden-display-none.html",
+      "cat": "hidden",
+      "kind": "element",
+      "expect": [
+        "hidden"
+      ],
+      "target": true
+    },
+    {
+      "id": "40-hidden-ancestor-display-none",
+      "v1": "v1/40-hidden-ancestor-display-none.html",
+      "v2": "v2/40-hidden-ancestor-display-none.html",
+      "cat": "hidden",
+      "kind": "element",
+      "expect": [
+        "hidden"
+      ],
+      "target": true
+    },
+    {
+      "id": "41-hidden-in-closed-dialog",
+      "v1": "v1/41-hidden-in-closed-dialog.html",
+      "v2": "v2/41-hidden-in-closed-dialog.html",
+      "cat": "hidden",
+      "kind": "element",
+      "expect": [
+        "hidden"
+      ],
+      "target": true,
+      "stateInDialog": true
+    },
+    {
+      "id": "42-hidden-attribute",
+      "v1": "v1/42-hidden-attribute.html",
+      "v2": "v2/42-hidden-attribute.html",
+      "cat": "hidden",
+      "kind": "element",
+      "expect": [
+        "hidden"
+      ],
+      "target": true
+    },
+    {
+      "id": "43-hidden-zero-bbox",
+      "v1": "v1/43-hidden-zero-bbox.html",
+      "v2": "v2/43-hidden-zero-bbox.html",
+      "cat": "hidden",
+      "kind": "element",
+      "expect": [
+        "hidden"
+      ],
+      "target": true
+    },
+    {
+      "id": "44-hidden-on-mobile",
+      "v1": "v1/44-hidden-on-mobile.html",
+      "v2": "v2/44-hidden-on-mobile.html",
+      "cat": "breakpoint",
+      "kind": "element",
+      "expect": [
+        "hidden"
+      ],
+      "target": true,
+      "v1Viewport": 1440,
+      "v2Viewport": 390
+    },
+    {
+      "id": "45-region-class-changed",
+      "v1": "v1/45-region-class-changed.html",
+      "v2": "v2/45-region-class-changed.html",
+      "cat": "region",
+      "kind": "region",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "46-region-sibling-inserted",
+      "v1": "v1/46-region-sibling-inserted.html",
+      "v2": "v2/46-region-sibling-inserted.html",
+      "cat": "region",
+      "kind": "region",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true
+    },
+    {
+      "id": "47-text-same",
+      "v1": "v1/47-text-same.html",
+      "v2": "v2/47-text-same.html",
+      "cat": "text",
+      "kind": "text",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true,
+      "select": "delivered within two days"
+    },
+    {
+      "id": "48-text-edited-fuzzy",
+      "v1": "v1/48-text-edited-fuzzy.html",
+      "v2": "v2/48-text-edited-fuzzy.html",
+      "cat": "text",
+      "kind": "text",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true,
+      "select": "delivered within two days",
+      "expectRange": true
+    },
+    {
+      "id": "49-text-wrapped",
+      "v1": "v1/49-text-wrapped.html",
+      "v2": "v2/49-text-wrapped.html",
+      "cat": "text",
+      "kind": "text",
+      "expect": [
+        "exact",
+        "fuzzy"
+      ],
+      "target": true,
+      "select": "fast courier network"
+    },
+    {
+      "id": "50-text-deleted",
+      "v1": "v1/50-text-deleted.html",
+      "v2": "v2/50-text-deleted.html",
+      "cat": "text",
+      "kind": "text",
+      "expect": [
+        "fallback",
+        "orphaned"
+      ],
+      "target": false,
+      "select": "delivered within two days"
+    },
+    {
+      "id": "51-breakpoint-narrow",
+      "v1": "v1/51-breakpoint-narrow.html",
+      "v2": "v2/51-breakpoint-narrow.html",
+      "cat": "breakpoint",
+      "kind": "element",
+      "expect": [
+        "exact"
+      ],
+      "target": true,
+      "v1Viewport": 1440,
+      "v2Viewport": 390
+    },
+    {
+      "id": "52-breakpoint-tablet-reflow",
+      "v1": "v1/52-breakpoint-tablet-reflow.html",
+      "v2": "v2/52-breakpoint-tablet-reflow.html",
+      "cat": "breakpoint",
+      "kind": "element",
+      "expect": [
+        "exact"
+      ],
+      "target": true,
+      "v1Viewport": 1440,
+      "v2Viewport": 768
+    }
+  ]
+}

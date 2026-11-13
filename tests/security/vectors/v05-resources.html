@@ -1,0 +1,28 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><script src="/_lib.js"></script>
+<style>
+  @import url(http://evil.localhost:6100/import.css);
+  @font-face { font-family: Evil; src: url(http://evil.localhost:6100/font.woff2); }
+  body { background: url(http://evil.localhost:6100/bg.png); font-family: Evil, serif; }
+  .b { background-image: url(http://evil.localhost:6100/bg2.png); list-style: url(http://evil.localhost:6100/li.png); }
+</style>
+<link rel="stylesheet" href="http://evil.localhost:6100/link.css">
+</head><body>
+<p class="b">Evil font text</p>
+<img src="http://evil.localhost:6100/static.png" alt="">
+<video src="http://evil.localhost:6100/video.mp4"></video>
+<script src="http://evil.localhost:6100/script.js"></script>
+<script>
+  var r = {};
+  new Image().src = 'http://evil.localhost:6100/new-image.png';
+  var el = document.createElement('div');
+  el.style.cssText = 'background:url(http://evil.localhost:6100/inline-style.png)';
+  document.body.appendChild(el);
+  // 對照組：bundle 內的圖片要能載入（不能被 CORP 或 CSP 誤擋）
+  var ok = new Image();
+  ok.onload = function () { r.selfImage = 'loaded'; };
+  ok.onerror = function () { r.selfImage = 'error'; };
+  ok.src = '/pixel.png';
+  setTimeout(function () { report('result', r); report('done'); }, 1500);
+</script>
+</body></html>

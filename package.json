@@ -12,10 +12,13 @@
     "format:check": "prettier --check .",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test -c tests/e2e/playwright.e2e.config.ts",
     "build": "pnpm -r --if-present build",
     "dev": "pnpm -r --parallel --if-present dev",
-    "db:migrate": "pnpm --filter @hpe/api db:migrate"
+    "db:migrate": "pnpm --filter @hpe/api db:migrate",
+    "test:security": "playwright test -c tests/security/playwright.security.config.ts",
+    "test:export": "pnpm --filter @hpe/frame-agent build && pnpm --filter @hpe/export-viewer build && playwright test tests/export",
+    "test:all": "pnpm test && pnpm test:security && pnpm test:export && pnpm test:e2e"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

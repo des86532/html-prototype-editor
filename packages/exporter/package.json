@@ -3,6 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema/annotations.v1.json": "./schema/annotations.v1.json"
+  },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },

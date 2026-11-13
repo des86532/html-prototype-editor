@@ -4,7 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "db:generate": "drizzle-kit generate && tsx scripts/strip-public-schema.ts",
+    "db:migrate": "tsx src/db/migrate.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1168.0",
@@ -22,13 +26,15 @@
     "parse5": "^8.1.1",
     "pg": "^8.23.1",
     "ulid": "^3.0.2",
-    "yauzl": "^3.4.0"
+    "yauzl": "^3.4.0",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/mime-types": "^3.0.1",
     "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1",
     "@types/yauzl": "^3.4.0",
-    "drizzle-kit": "^0.31.11"
+    "drizzle-kit": "^0.31.11",
+    "fflate": "^0.8.3"
   }
 }
