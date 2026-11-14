@@ -228,7 +228,6 @@ test.afterAll(async () => {
   await new Promise((ok) => evil.close(ok));
 });
 
-
 const frame = (page: Page) => page.frameLocator('iframe[title^="Prototype"]');
 const pins = (page: Page) => page.locator('[data-pin-id]');
 
