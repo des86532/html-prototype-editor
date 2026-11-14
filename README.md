@@ -32,7 +32,7 @@ pnpm --filter @hpe/frame-agent build
 pnpm dev                         # web :5173、content :5174、api :5175
 ```
 
-開發環境的 prototype 內容網域用 `*.localhost`（`content.localhost:5174`）；Chromium、Firefox 會把它解析到本機。登入使用 Google（OAuth 2.0 Authorization Code + PKCE）：在 Google Cloud Console 建立「Web application」OAuth client，Authorized redirect URI 填 `${API_ORIGIN}/auth/google/callback`（開發環境為 `http://localhost:5175/auth/google/callback`），並設定 `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`。開發與 e2e 可設 `DEV_LOGIN=true`，用 `POST /auth/dev-login` 直接以 email 登入（`NODE_ENV=production` 禁止開啟）。
+開發環境的 prototype 內容網域用 `*.localhost`（`content.localhost:5174`）；Chromium、Firefox 會把它解析到本機。登入使用 Google（OAuth 2.0 Authorization Code + PKCE）：在 Google Cloud Console 建立「Web application」OAuth client，Authorized redirect URI 填 `${API_ORIGIN}/auth/google/callback`（開發環境為 `http://localhost:5175/auth/google/callback`，正式環境為 `https://html-prototype-editor.pages.dev/api/auth/google/callback`），並設定 `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`。正式部署（Cloudflare Pages ＋自己的機器 ＋ Tunnel）見 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。開發與 e2e 可設 `DEV_LOGIN=true`，用 `POST /auth/dev-login` 直接以 email 登入（`NODE_ENV=production` 禁止開啟）。
 
 ### 環境變數
 

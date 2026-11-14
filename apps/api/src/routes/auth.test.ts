@@ -173,6 +173,23 @@ describe('Google 登入', () => {
     expect(oauth.httpOnly).toBe(true);
   });
 
+  it('API_ORIGIN 帶路徑前綴（反向代理）：redirect_uri 與 hpe_oauth 的 Path 都帶前綴', async () => {
+    const proxied = await createHarness({
+      config: { apiOrigin: 'https://app.example.pages.dev/api', secureCookies: true },
+    });
+    try {
+      const res = await proxied.app.inject({ method: 'GET', url: '/auth/google' });
+      const url = new URL(loc(res));
+      expect(url.searchParams.get('redirect_uri')).toBe(
+        'https://app.example.pages.dev/api/auth/google/callback',
+      );
+      const oauth = res.cookies.find((c) => c.name === 'hpe_oauth')!;
+      expect(oauth.path).toBe('/api/auth/google');
+    } finally {
+      await proxied.close();
+    }
+  });
+
   it('DEV_LOGIN=false → POST /auth/dev-login 回 404', async () => {
     const off = await createHarness({ config: { devLogin: false } });
     try {

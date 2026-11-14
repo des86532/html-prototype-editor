@@ -94,12 +94,15 @@ async function upsertGoogleUser(
 
 export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext, limiter: RateLimiter) {
   const limit = rateLimit(limiter, 'authRequest');
+  // API 可能掛在反向代理的路徑前綴下（例如 API_ORIGIN=https://app.example/api），
+  // 瀏覽器看到的是 `/api/auth/google`，cookie 的 Path 要跟著帶前綴才會在 callback 被送出。
+  const apiBasePath = new URL(ctx.config.apiOrigin).pathname.replace(/\/+$/, '');
   const oauthCookieOpts = {
     httpOnly: true,
     sameSite: 'lax',
     secure: ctx.config.secureCookies,
     // /auth/google 也涵蓋 /auth/google/callback
-    path: API_ROUTES.googleLogin.path,
+    path: apiBasePath + API_ROUTES.googleLogin.path,
   } as const;
   const redirectUri = ctx.config.apiOrigin + API_ROUTES.googleCallback.path;
   const loginRedirect = (code: string) => `${ctx.config.appOrigin}/login?error=${code}`;
