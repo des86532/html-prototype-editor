@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -27,6 +28,7 @@ import { CommentPanel, type PanelThread } from '@/features/comments/CommentPanel
 import { canComment, type ThreadActor } from '@/features/comments/permissions';
 import { useViewerShortcuts } from '@/features/comments/shortcuts';
 import { useThreads } from '@/features/comments/useThreads';
+import { CropMarks } from '@/features/ui/CropMarks';
 import { DRAFT_ID, useUiStore, type Draft } from '@/state/uiStore';
 import { DeviceToolbar } from './DeviceToolbar';
 import { FrameWatchdog, useFrameWatchdog } from './FrameWatchdog';
@@ -34,6 +36,7 @@ import { HoverHighlight } from './HoverHighlight';
 import { SandboxFrame } from './SandboxFrame';
 import { ThreadLayer } from './ThreadLayer';
 import { effectiveAnchorStatus, type AnchorResult } from './buildPins';
+import { fitScale } from './fitScale';
 import { frameSrc } from './frameSrc';
 import { useFrameBridge, type BridgeWarning } from './useFrameBridge';
 
@@ -54,19 +57,18 @@ export interface PrototypeViewerProps {
   srcOverride?: string;
 }
 
-const FIT_PADDING_PX = 32;
 const TOAST_MS = 4000;
 
-function useElementWidth(el: HTMLElement | null): number {
-  const [width, setWidth] = useState(0);
+function useElementSize(el: HTMLElement | null): { w: number; h: number } {
+  const [size, setSize] = useState({ w: 0, h: 0 });
   useEffect(() => {
     if (!el) return;
     if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => setWidth(el.clientWidth));
+    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
     ro.observe(el);
     return () => ro.disconnect();
   }, [el]);
-  return width;
+  return size;
 }
 
 /** 單一 viewer：header（不受信任內容）、工具列、sandbox frame + overlay、留言面板。 */
@@ -90,7 +92,8 @@ export function PrototypeViewer({
   const [frameKey, setFrameKey] = useState(0);
   const [iframe, setIframe] = useState<HTMLIFrameElement | null>(null);
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
-  const containerWidth = useElementWidth(containerEl);
+  const containerSize = useElementSize(containerEl);
+  const toolbarId = useId();
 
   // 每個 viewer 重置 UI 狀態（模式、草稿、卡片、篩選）。
   useEffect(() => {
@@ -441,56 +444,80 @@ export function PrototypeViewer({
 
   /* ---------------- 版面 ---------------- */
   const { width, height } = ui.device;
-  const scale =
-    ui.fit && containerWidth > 0 ? Math.min(1, (containerWidth - FIT_PADDING_PX) / width) : 1;
+  const scale = ui.fit ? fitScale(containerSize, ui.device) : 1;
   const viewport = frameViewport ?? { w: width, h: height };
   const src = srcOverride ?? frameSrc(version.contentKey, loadedPage);
 
   return (
-    <div className="flex h-screen flex-col bg-neutral-100" data-testid="prototype-viewer">
-      <header className="flex items-center gap-3 border-b border-neutral-200 bg-white px-3 py-2">
+    <div className="flex h-dvh flex-col bg-stage" data-testid="prototype-viewer">
+      <header className="flex h-12 items-center gap-3 border-b border-line bg-surface px-3">
         {headerExtra}
-        <h1 className="truncate text-sm font-semibold">
-          {projectName ? `${projectName} · ` : ''}v{version.number}
+        <h1 className="flex min-w-0 items-center gap-2 text-sm font-semibold text-ink">
+          {projectName && <span className="truncate">{projectName}</span>}
+          <span className="rounded border border-line px-1.5 font-mono text-xs font-medium text-ink-2">
+            v{version.number}
+          </span>
         </h1>
-        <span
-          role="note"
-          className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900"
-        >
+        <span role="note" className="chip chip-warn">
           不受信任內容
         </span>
+        <div className="ml-auto flex items-center gap-2">
+          {ui.toolbarCollapsed && mode === 'comment' && (
+            <span className="chip chip-accent">留言模式（C）</span>
+          )}
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            aria-expanded={!ui.toolbarCollapsed}
+            aria-controls={toolbarId}
+            onClick={() => ui.setToolbarCollapsed(!ui.toolbarCollapsed)}
+          >
+            <span aria-hidden="true">{ui.toolbarCollapsed ? '▾' : '▴'}</span>
+            {ui.toolbarCollapsed ? ' 展開工具列' : ' 收合工具列'}
+          </button>
+        </div>
       </header>
-      <DeviceToolbar
-        device={ui.device}
-        onDevice={ui.setDevice}
-        fit={ui.fit}
-        onFit={ui.setFit}
-        scale={scale}
-        mode={mode}
-        onMode={ui.setMode}
-        canComment={writable}
-        showComments={ui.showComments}
-        onShowComments={ui.setShowComments}
-        showResolved={ui.showResolved}
-        onShowResolved={ui.setShowResolved}
-        panelOpen={ui.panelOpen}
-        onPanelOpen={ui.setPanelOpen}
-        threadCount={threads.length}
-        pages={version.pages}
-        pageId={readyPage ?? loadedPage}
-        onPage={reloadFrame}
-        onExport={onExport}
-      />
+      {!ui.toolbarCollapsed && (
+        <DeviceToolbar
+          id={toolbarId}
+          device={ui.device}
+          onDevice={ui.setDevice}
+          fit={ui.fit}
+          onFit={ui.setFit}
+          scale={scale}
+          mode={mode}
+          onMode={ui.setMode}
+          canComment={writable}
+          showComments={ui.showComments}
+          onShowComments={ui.setShowComments}
+          showResolved={ui.showResolved}
+          onShowResolved={ui.setShowResolved}
+          panelOpen={ui.panelOpen}
+          onPanelOpen={ui.setPanelOpen}
+          threadCount={threads.length}
+          pages={version.pages}
+          pageId={readyPage ?? loadedPage}
+          onPage={reloadFrame}
+          onExport={onExport}
+        />
+      )}
       <div className="flex min-h-0 flex-1">
         <div
           ref={setContainerEl}
-          className="relative min-w-0 flex-1 overflow-auto p-4"
+          className="stage-grid relative min-w-0 flex-1 overflow-auto p-8"
           data-testid="viewer-container"
         >
           <div
             className="relative mx-auto"
             style={{ width: width * scale, height: height * scale }}
           >
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -top-7 left-0 font-mono text-[11px] whitespace-nowrap text-measure"
+            >
+              {width} × {height} · {Math.round(scale * 100)}%
+            </div>
+            <CropMarks />
             <SandboxFrame
               key={frameKey}
               ref={setIframe}
@@ -526,7 +553,7 @@ export function PrototypeViewer({
           {(toast || warning) && (
             <div
               role="status"
-              className="fixed bottom-4 left-1/2 z-50 max-w-md -translate-x-1/2 rounded-md bg-neutral-900 px-3 py-2 text-sm text-white shadow-lg"
+              className="fixed bottom-4 left-1/2 z-50 max-w-md -translate-x-1/2 rounded-md bg-ink px-3 py-2 text-sm text-white shadow-lg"
             >
               {toast ?? warning}
             </div>

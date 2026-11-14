@@ -19,7 +19,7 @@ function convert(node: Node, key: string): ReactNode {
       props.href = href;
       props.target = '_blank';
       props.rel = 'noopener noreferrer nofollow';
-      props.className = 'text-blue-600 underline';
+      props.className = 'text-accent underline';
     }
   }
   return createElement(tag, props, ...children);
@@ -41,7 +41,7 @@ export function SafeMarkdown({ source, className }: SafeMarkdownProps) {
   }, [source]);
   return (
     <div
-      className={`hpe-md break-words text-sm [&_blockquote]:border-l-2 [&_blockquote]:pl-2 [&_code]:rounded [&_code]:bg-neutral-100 [&_code]:px-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1 [&_pre]:overflow-x-auto [&_ul]:list-disc [&_ul]:pl-5 ${className ?? ''}`}
+      className={`hpe-md break-words text-sm [&_blockquote]:border-l-2 [&_blockquote]:pl-2 [&_code]:rounded [&_code]:bg-paper [&_code]:px-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1 [&_pre]:overflow-x-auto [&_ul]:list-disc [&_ul]:pl-5 ${className ?? ''}`}
     >
       {tree}
     </div>

@@ -135,15 +135,11 @@ export function FrameWatchdog({ state, onStop, onReload }: FrameWatchdogProps) {
         role="alertdialog"
         aria-label="prototype 已離開預覽範圍"
         data-testid="watchdog-left-scope"
-        className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-white/95 text-center"
+        className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-surface/95 text-center"
       >
-        <p className="text-base font-medium">prototype 已離開預覽範圍</p>
-        <p className="text-sm text-neutral-600">頁面導向了外部網址，為了安全已被遮罩。</p>
-        <button
-          type="button"
-          className="rounded bg-neutral-900 px-3 py-1.5 text-sm text-white"
-          onClick={onReload}
-        >
+        <p className="text-base font-medium text-ink">prototype 已離開預覽範圍</p>
+        <p className="text-sm text-ink-2">頁面導向了外部網址，為了安全已被遮罩。</p>
+        <button type="button" className="btn btn-primary btn-sm" onClick={onReload}>
           重新載入
         </button>
       </div>
@@ -155,14 +151,10 @@ export function FrameWatchdog({ state, onStop, onReload }: FrameWatchdogProps) {
         role="alertdialog"
         aria-label="prototype 無回應"
         data-testid="watchdog-unresponsive"
-        className="absolute inset-x-0 top-0 z-50 flex items-center justify-between gap-3 bg-amber-100 px-4 py-2 text-sm"
+        className="absolute inset-x-0 top-0 z-50 flex items-center justify-between gap-3 bg-warn-soft px-4 py-2 text-sm text-warn"
       >
         <span>prototype 無回應（可能有無窮迴圈）</span>
-        <button
-          type="button"
-          className="rounded bg-neutral-900 px-3 py-1 text-white"
-          onClick={onStop}
-        >
+        <button type="button" className="btn btn-warn-solid btn-sm" onClick={onStop}>
           停止 prototype
         </button>
       </div>
@@ -172,14 +164,10 @@ export function FrameWatchdog({ state, onStop, onReload }: FrameWatchdogProps) {
     return (
       <div
         data-testid="watchdog-stopped"
-        className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-neutral-100 text-center"
+        className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-paper text-center"
       >
         <p className="text-sm">prototype 已停止</p>
-        <button
-          type="button"
-          className="rounded bg-neutral-900 px-3 py-1.5 text-sm text-white"
-          onClick={onReload}
-        >
+        <button type="button" className="btn btn-primary btn-sm" onClick={onReload}>
           重新載入
         </button>
       </div>

@@ -1,1 +1,173 @@
 @import 'tailwindcss';
+
+@theme {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei',
+    'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --color-ink: #1b1f2a; /* 主要文字 */
+  --color-ink-2: #4f5766; /* 次要文字 */
+  --color-ink-3: #5d6574; /* 輔助文字（仍需 ≥4.5:1） */
+  --color-paper: #f3f5f8; /* app 底色 */
+  --color-surface: #ffffff; /* 卡片、列 */
+  --color-line: #d9dee5;
+  --color-line-strong: #b9c0cb;
+  --color-stage: #e6e9ee; /* viewer 畫布 */
+  --color-accent: #c2185b; /* 印刷洋紅：主要動作、選取、焦點 */
+  --color-accent-hover: #a3134b;
+  --color-accent-soft: #fce4ee;
+  --color-measure: #0b6f78; /* 量測：尺寸標籤、裁切標記、hover 框、開關中的 toggle */
+  --color-measure-soft: #e0f2f3;
+  --color-danger: #b42318;
+  --color-danger-soft: #fee4e2;
+  --color-warn: #b54708;
+  --color-warn-soft: #fef0c7;
+  --color-ok: #067647;
+  --color-ok-soft: #dcfae6;
+}
+
+@layer base {
+  body {
+    @apply bg-paper font-sans text-ink antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex h-8 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-sm {
+    @apply h-7 px-2 text-xs;
+  }
+  .btn-lg {
+    @apply h-10 px-4;
+  }
+  .btn-primary {
+    @apply bg-accent text-white hover:bg-accent-hover;
+  }
+  .btn-secondary {
+    @apply border border-line bg-surface text-ink hover:bg-paper;
+  }
+  .btn-ghost {
+    @apply text-ink-2 hover:bg-paper hover:text-ink;
+  }
+  .btn-danger {
+    @apply border border-danger/40 bg-surface text-danger hover:bg-danger-soft;
+  }
+  .btn-danger-solid {
+    @apply bg-danger text-white hover:brightness-95;
+  }
+  .btn-warn-solid {
+    @apply bg-warn text-white hover:brightness-95;
+  }
+  .btn-toggle[aria-pressed='true'] {
+    border-color: var(--color-measure);
+    background: var(--color-measure-soft);
+    color: var(--color-measure);
+  }
+  .seg {
+    @apply inline-flex items-center gap-0.5 rounded-md border border-line bg-paper p-0.5;
+  }
+  .seg > button {
+    @apply h-7 rounded px-2 text-xs font-medium text-ink-2 hover:text-ink disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .seg > button[aria-pressed='true'] {
+    @apply bg-surface text-ink shadow-sm ring-1 ring-line;
+  }
+  .seg > button[aria-pressed='true'][data-accent] {
+    @apply bg-accent text-white ring-accent;
+  }
+  .input {
+    @apply h-9 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-3 focus:border-accent focus:ring-2 focus:ring-accent/20 focus:outline-none;
+  }
+  .input-sm {
+    @apply h-7 px-2 text-xs;
+  }
+  .field-label {
+    @apply mb-1 block text-sm font-medium text-ink;
+  }
+  .card {
+    @apply rounded-lg border border-line bg-surface;
+  }
+  .link {
+    @apply text-accent underline-offset-2 hover:underline;
+  }
+  .chip {
+    @apply inline-flex items-center rounded px-1.5 text-[11px] leading-5 font-medium;
+  }
+  .chip-ok {
+    @apply bg-ok-soft text-ok;
+  }
+  .chip-warn {
+    @apply bg-warn-soft text-warn;
+  }
+  .chip-danger {
+    @apply bg-danger-soft text-danger;
+  }
+  .chip-muted {
+    @apply bg-paper text-ink-2 ring-1 ring-line;
+  }
+  .chip-accent {
+    @apply bg-accent-soft text-accent;
+  }
+  .stage-grid {
+    background-color: var(--color-stage);
+    background-image: radial-gradient(
+      color-mix(in srgb, var(--color-ink) 14%, transparent) 1px,
+      transparent 1px
+    );
+    background-size: 16px 16px;
+  }
+  .crop-marks {
+    position: absolute;
+    inset: -14px;
+    pointer-events: none;
+  }
+  .crop-marks > span {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border: 0 solid var(--color-measure);
+  }
+  .crop-marks > span:nth-child(1) {
+    top: 0;
+    left: 0;
+    border-top-width: 1.5px;
+    border-left-width: 1.5px;
+  }
+  .crop-marks > span:nth-child(2) {
+    top: 0;
+    right: 0;
+    border-top-width: 1.5px;
+    border-right-width: 1.5px;
+  }
+  .crop-marks > span:nth-child(3) {
+    bottom: 0;
+    left: 0;
+    border-bottom-width: 1.5px;
+    border-left-width: 1.5px;
+  }
+  .crop-marks > span:nth-child(4) {
+    right: 0;
+    bottom: 0;
+    border-right-width: 1.5px;
+    border-bottom-width: 1.5px;
+  }
+  .frame-shadow {
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.06),
+      0 8px 24px rgb(0 0 0 / 0.08);
+  }
+}

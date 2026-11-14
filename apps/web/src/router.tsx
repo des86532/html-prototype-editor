@@ -21,10 +21,7 @@ const rootRoute = createRootRoute({
   errorComponent: ({ error }) => (
     <StateMessage title="無法載入頁面">
       <p className="mb-4">{error instanceof Error ? error.message : '發生未預期的錯誤'}</p>
-      <a
-        href="/login"
-        className="inline-block rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-      >
+      <a href="/login" className="btn btn-primary">
         前往登入頁
       </a>
     </StateMessage>

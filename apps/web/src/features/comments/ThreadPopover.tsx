@@ -109,13 +109,13 @@ export function ThreadPopover({
       data-testid="thread-popover"
       data-draft={thread ? undefined : 'true'}
       style={{ ...floatingStyles, width: POPOVER_WIDTH_PX }}
-      className="pointer-events-auto z-30 max-h-[60vh] overflow-y-auto rounded-xl border border-neutral-200 bg-white p-3 shadow-xl focus:outline-none"
+      className="card pointer-events-auto z-30 max-h-[60vh] overflow-y-auto p-3 shadow-lg focus:outline-none"
       {...getFloatingProps()}
     >
       {thread ? (
         <>
           {(anchorStatus === 'fuzzy' || anchorStatus === 'fallback') && (
-            <p className="mb-2 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
+            <p className="mb-2 rounded border border-warn/30 bg-warn-soft px-2 py-1 text-xs text-warn">
               {anchorStatus === 'fuzzy' ? '位置可能有變' : '找不到原本的元素，位置可能不準確'}
             </p>
           )}

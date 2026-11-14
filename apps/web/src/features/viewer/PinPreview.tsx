@@ -29,18 +29,16 @@ export function PinPreview({ summary, referenceEl, boundary }: PinPreviewProps) 
       role="tooltip"
       data-testid="pin-preview"
       style={floatingStyles}
-      className="pointer-events-none z-30 w-64 rounded-lg border border-neutral-200 bg-white p-3 text-sm shadow-lg"
+      className="card pointer-events-none z-30 w-64 p-3 text-sm shadow-lg"
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="truncate font-medium">{summary.authorName}</span>
-        <span className="shrink-0 text-xs text-neutral-500">
-          {formatRelativeTime(summary.createdAt)}
-        </span>
+        <span className="truncate font-semibold text-ink">{summary.authorName}</span>
+        <span className="shrink-0 text-xs text-ink-3">{formatRelativeTime(summary.createdAt)}</span>
       </div>
-      <p className="mt-1 line-clamp-2 whitespace-pre-wrap break-words text-neutral-700">
+      <p className="mt-1 line-clamp-2 whitespace-pre-wrap break-words text-ink-2">
         {firstLines(summary.body, 2)}
       </p>
-      <p className="mt-1 text-xs text-neutral-500">
+      <p className="mt-1 text-xs text-ink-3">
         {summary.replyCount > 0 ? `${summary.replyCount} 則回覆` : '尚無回覆'}
       </p>
     </div>

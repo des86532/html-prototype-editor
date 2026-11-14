@@ -95,28 +95,20 @@ export function Composer({
             onEscape();
           }
         }}
-        className="w-full resize-y rounded-md border border-neutral-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+        className="input h-auto resize-y py-2"
       />
       {error && (
-        <p role="alert" className="text-xs text-red-600">
+        <p role="alert" className="text-xs text-danger">
           {error}
         </p>
       )}
       <div className="flex justify-end gap-2">
         {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-md px-3 py-1 text-sm text-neutral-600 hover:bg-neutral-100"
-          >
+          <button type="button" onClick={onCancel} className="btn btn-ghost btn-sm">
             取消
           </button>
         )}
-        <button
-          type="submit"
-          disabled={busy}
-          className="rounded-md bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-        >
+        <button type="submit" disabled={busy} className="btn btn-primary btn-sm">
           {busy ? '送出中…' : submitLabel}
         </button>
       </div>
