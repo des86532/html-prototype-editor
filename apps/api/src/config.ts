@@ -4,13 +4,9 @@ import { fileURLToPath } from 'node:url';
 /** monorepo 根目錄（apps/api/src/config.ts → ../../..）。相對路徑的環境變數以此為基準。 */
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
-export interface SmtpConfig {
-  host: string;
-  port: number;
-  secure: boolean;
-  user?: string;
-  pass?: string;
-  from: string;
+export interface GoogleConfig {
+  clientId: string;
+  clientSecret: string;
 }
 
 export interface S3Config {
@@ -62,8 +58,9 @@ export interface Config {
   storageFsRoot: string;
   s3: S3Config;
   sessionSecret: string;
-  devMagicLink: boolean;
-  smtp: SmtpConfig | null;
+  google: GoogleConfig | null;
+  /** 開發／e2e 用的 POST /auth/dev-login；production 禁止 */
+  devLogin: boolean;
   internalToken: string;
   secureCookies: boolean;
   trustProxy: boolean;
@@ -101,26 +98,20 @@ export function loadConfig(env: Env = process.env): Config {
     throw new Error('SESSION_SECRET 必須至少 32 個字元');
   }
 
-  const devMagicLink = bool(env.DEV_MAGIC_LINK, false);
-  if (devMagicLink && production) {
-    throw new Error('DEV_MAGIC_LINK=true 不可用於 NODE_ENV=production');
+  const devLogin = bool(env.DEV_LOGIN, false);
+  if (devLogin && production) {
+    throw new Error('DEV_LOGIN=true 不可用於 NODE_ENV=production');
   }
-  let smtp: SmtpConfig | null = null;
-  if (env.SMTP_HOST) {
-    const port = Number(env.SMTP_PORT ?? 587);
-    smtp = {
-      host: env.SMTP_HOST,
-      port,
-      secure: bool(env.SMTP_SECURE, port === 465),
-      ...(env.SMTP_USER ? { user: env.SMTP_USER } : {}),
-      ...(env.SMTP_PASS ? { pass: env.SMTP_PASS } : {}),
-      from: env.SMTP_FROM ?? 'HTML Prototype Editor <no-reply@localhost>',
-    };
+  const googleClientId = env.GOOGLE_CLIENT_ID ?? '';
+  const googleClientSecret = env.GOOGLE_CLIENT_SECRET ?? '';
+  if (Boolean(googleClientId) !== Boolean(googleClientSecret)) {
+    throw new Error('必須同時設定 GOOGLE_CLIENT_ID 與 GOOGLE_CLIENT_SECRET');
   }
-  if (!devMagicLink && !smtp) {
-    throw new Error(
-      'DEV_MAGIC_LINK=false 時必須設定 SMTP_HOST（及 SMTP_PORT/SMTP_USER/SMTP_PASS）',
-    );
+  const google: GoogleConfig | null = googleClientId
+    ? { clientId: googleClientId, clientSecret: googleClientSecret }
+    : null;
+  if (!google && !devLogin) {
+    throw new Error('DEV_LOGIN=false 時必須設定 GOOGLE_CLIENT_ID 與 GOOGLE_CLIENT_SECRET');
   }
 
   let internalToken = env.INTERNAL_TOKEN ?? '';
@@ -147,8 +138,8 @@ export function loadConfig(env: Env = process.env): Config {
       region: env.S3_REGION ?? 'us-east-1',
     },
     sessionSecret,
-    devMagicLink,
-    smtp,
+    google,
+    devLogin,
     internalToken,
     secureCookies: appOrigin.startsWith('https://'),
     trustProxy: bool(env.TRUST_PROXY, false),

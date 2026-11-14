@@ -4,16 +4,28 @@ import path from 'node:path';
 import type { Anchor, ThreadTag } from '@hpe/shared';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { buildApp } from '../app.js';
+import type { GoogleIdentity, GoogleOAuth } from '../auth/google.js';
 import { DEFAULT_RATE_LIMITS, loadConfig, type Config } from '../config.js';
-import type { Mailer } from '../mail.js';
+import { randomToken } from '../ids.js';
 import { FsStorage } from '../storage/fs.js';
 import { createTestDb, type TestDb } from './db.js';
 import { multipartBody } from './zip.js';
 
-export class FakeMailer implements Mailer {
-  sent: { email: string; link: string }[] = [];
-  async sendMagicLink(email: string, link: string): Promise<void> {
-    this.sent.push({ email, link });
+export class FakeGoogle implements GoogleOAuth {
+  /** 以 authorization code 為 key */
+  identities = new Map<string, GoogleIdentity>();
+  authorizeUrl(p: { state: string; nonce: string; codeChallenge: string; redirectUri: string }) {
+    return `https://accounts.example/auth?${new URLSearchParams({
+      state: p.state,
+      nonce: p.nonce,
+      code_challenge: p.codeChallenge,
+      redirect_uri: p.redirectUri,
+    }).toString()}`;
+  }
+  async exchangeCode({ code }: { code: string }): Promise<GoogleIdentity> {
+    const id = this.identities.get(code);
+    if (!id) throw new Error('unknown code');
+    return id;
   }
 }
 
@@ -21,11 +33,15 @@ export interface Harness {
   app: FastifyInstance;
   testDb: TestDb;
   config: Config;
-  mailer: FakeMailer;
+  google: FakeGoogle | null;
   storage: FsStorage;
   storageRoot: string;
   /** 登入並回傳 cookie header 值（`hpe_session=…`） */
   login(email: string): Promise<string>;
+  /** 走完整個 Google 流程（/auth/google → callback），回傳 callback 的 response */
+  googleLogin(
+    identity: Omit<GoogleIdentity, 'nonce'> & { nonce?: string | null },
+  ): Promise<LightMyRequestResponse>;
   createProject(cookie: string, name?: string): Promise<{ id: string }>;
   uploadHtml(
     cookie: string,
@@ -45,19 +61,23 @@ export interface Harness {
 export interface HarnessOptions {
   config?: Partial<Config>;
   now?: () => Date;
+  /** 預設 new FakeGoogle()；傳 null 代表未設定 Google 登入 */
+  google?: FakeGoogle | null;
 }
 
 export async function createHarness(opts: HarnessOptions = {}): Promise<Harness> {
   const testDb = await createTestDb();
   const storageRoot = await mkdtemp(path.join(tmpdir(), 'hpe-test-storage-'));
-  const mailer = new FakeMailer();
+  const google = opts.google === undefined ? new FakeGoogle() : opts.google;
   const storage = new FsStorage(storageRoot);
   const config: Config = {
     ...loadConfig({
       APP_ORIGIN: 'http://localhost:5173',
       API_ORIGIN: 'http://localhost:5175',
       SESSION_SECRET: 'test-session-secret-test-session-secret',
-      DEV_MAGIC_LINK: 'true',
+      DEV_LOGIN: 'true',
+      GOOGLE_CLIENT_ID: 'test-client',
+      GOOGLE_CLIENT_SECRET: 'test-secret',
       INTERNAL_TOKEN: 'test-internal-token',
       STORAGE_FS_ROOT: storageRoot,
     }),
@@ -68,13 +88,14 @@ export async function createHarness(opts: HarnessOptions = {}): Promise<Harness>
         { capacity: 10_000, refillPerSecond: 10_000 },
       ]),
     ) as unknown as Config['rateLimits'],
+    ...(google ? {} : { google: null }),
     ...opts.config,
   };
   const app = await buildApp({
     config,
     db: testDb.db,
     storage,
-    mailer,
+    google,
     ...(opts.now ? { now: opts.now } : {}),
   });
   await app.ready();
@@ -83,17 +104,31 @@ export async function createHarness(opts: HarnessOptions = {}): Promise<Harness>
     app,
     testDb,
     config,
-    mailer,
+    google,
     storage,
     storageRoot,
     async login(email) {
-      const res = await app.inject({ method: 'POST', url: '/auth/magic-link', payload: { email } });
-      const devLink = (res.json() as { devLink: string }).devLink;
-      const cb = await app.inject({
-        method: 'GET',
-        url: new URL(devLink).pathname + new URL(devLink).search,
+      const res = await app.inject({ method: 'POST', url: '/auth/dev-login', payload: { email } });
+      return cookieOf(res);
+    },
+    async googleLogin(identity) {
+      if (!google) throw new Error('harness created with google: null');
+      const start = await app.inject({ method: 'GET', url: '/auth/google' });
+      const authUrl = new URL(start.headers.location as string);
+      const state = authUrl.searchParams.get('state') as string;
+      const nonce = authUrl.searchParams.get('nonce') as string;
+      const oauth = start.cookies.find((c) => c.name === 'hpe_oauth');
+      if (!oauth) throw new Error(`no oauth cookie (status ${start.statusCode})`);
+      const code = randomToken();
+      google.identities.set(code, {
+        ...identity,
+        nonce: identity.nonce === undefined ? nonce : identity.nonce,
       });
-      return cookieOf(cb);
+      return app.inject({
+        method: 'GET',
+        url: `/auth/google/callback?${new URLSearchParams({ code, state }).toString()}`,
+        headers: { cookie: `hpe_oauth=${oauth.value}` },
+      });
     },
     async createProject(cookie, name = '專案') {
       const res = await app.inject({

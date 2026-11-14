@@ -12,7 +12,7 @@ import type {
 /**
  * REST 契約（apps/api ↔ apps/web）。所有錯誤回應都是 `{ error: ApiErrorBody }`（見 errors.ts）。
  * 認證：
- *  - 擁有者：HttpOnly cookie `hpe_session`（SameSite=Lax），跨 origin fetch 需 `credentials: 'include'`。
+ *  - 擁有者：HttpOnly cookie `hpe_session`（SameSite=Lax，Google 登入後由 API 設定），跨 origin fetch 需 `credentials: 'include'`。
  *  - 分享連結使用者：每個請求帶 header `x-share-token`（原始 token，DB 只存 sha256）；
  *    寫入評論還要帶 `x-guest-token`（POST /share/:token/guest 取得，伺服器簽章）。
  */
@@ -23,14 +23,11 @@ export const API_HEADERS = {
 } as const;
 
 export const SESSION_COOKIE = 'hpe_session';
+/** Google OAuth 進行中的 state/PKCE verifier/nonce（HttpOnly，Path=/auth/google，10 分鐘）。 */
+export const OAUTH_COOKIE = 'hpe_oauth';
 
 export interface MeResponse {
   user: User;
-}
-export interface MagicLinkResponse {
-  ok: true;
-  /** 只在 DEV_MAGIC_LINK=true 時回傳，正式環境用 Email 寄送 */
-  devLink?: string;
 }
 export interface ListProjectsResponse {
   projects: Project[];
@@ -119,8 +116,9 @@ export interface ExportEstimateResponse {
 /** 路徑表。`:id` 一律使用 buildPath 展開，前後端不要各自拼字串。 */
 export const API_ROUTES = {
   me: { method: 'GET', path: '/me' },
-  magicLink: { method: 'POST', path: '/auth/magic-link' },
-  authCallback: { method: 'GET', path: '/auth/callback' },
+  googleLogin: { method: 'GET', path: '/auth/google' },
+  googleCallback: { method: 'GET', path: '/auth/google/callback' },
+  devLogin: { method: 'POST', path: '/auth/dev-login' },
   logout: { method: 'POST', path: '/auth/logout' },
   listProjects: { method: 'GET', path: '/projects' },
   createProject: { method: 'POST', path: '/projects' },

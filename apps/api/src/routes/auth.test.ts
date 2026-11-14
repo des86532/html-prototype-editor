@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { authTokens, sessions, users } from '../db/schema.js';
+import { pkceChallenge } from '../auth/google.js';
+import { sessions, users } from '../db/schema.js';
 import { sha256Hex } from '../ids.js';
 import { cookieOf, createHarness, type Harness } from '../testing/harness.js';
 
@@ -11,24 +12,24 @@ beforeAll(async () => {
 });
 afterAll(() => h.close());
 
-async function requestLink(email: string): Promise<string> {
-  const res = await h.app.inject({ method: 'POST', url: '/auth/magic-link', payload: { email } });
-  expect(res.statusCode).toBe(200);
-  const link = new URL((res.json() as { devLink: string }).devLink);
-  return link.pathname + link.search;
+const alice = { sub: 'g-1', email: 'alice@example.com', emailVerified: true, name: 'Alice' };
+
+function loc(res: { headers: Record<string, unknown> }): string {
+  return String(res.headers.location);
 }
 
-describe('magic link 登入', () => {
-  it('callback：建立使用者、設定 HttpOnly + SameSite=Lax cookie、導回 APP_ORIGIN，session 只存 hash', async () => {
-    const url = await requestLink('Alice@Example.com');
-    const cb = await h.app.inject({ method: 'GET', url });
+describe('Google 登入', () => {
+  it('成功：建立使用者、設定 HttpOnly + SameSite=Lax cookie、導回 APP_ORIGIN，session 只存 hash', async () => {
+    const cb = await h.googleLogin(alice);
     expect(cb.statusCode).toBe(302);
-    expect(cb.headers.location).toBe('http://localhost:5173');
-    const raw = String(cb.headers['set-cookie']);
-    expect(raw).toMatch(/hpe_session=/);
-    expect(raw).toMatch(/HttpOnly/i);
-    expect(raw).toMatch(/SameSite=Lax/i);
-    expect(raw).not.toMatch(/Secure/i); // APP_ORIGIN 為 http
+    expect(loc(cb)).toBe('http://localhost:5173');
+    const raw = ([] as string[]).concat(cb.headers['set-cookie'] as string | string[]);
+    const session = raw.find((c) => c.startsWith('hpe_session='))!;
+    expect(session).toMatch(/HttpOnly/i);
+    expect(session).toMatch(/SameSite=Lax/i);
+    expect(session).not.toMatch(/Secure/i); // APP_ORIGIN 為 http
+    const cleared = cb.cookies.find((c) => c.name === 'hpe_oauth');
+    expect(cleared?.value).toBe('');
 
     const cookie = cookieOf(cb);
     const token = cookie.split('=')[1]!;
@@ -38,44 +39,181 @@ describe('magic link 登入', () => {
     expect(rows[0]!.hash).not.toBe(token);
 
     const me = await h.app.inject({ method: 'GET', url: '/me', headers: { cookie } });
-    expect(me.json()).toMatchObject({ user: { email: 'alice@example.com', name: 'alice' } });
+    expect(me.statusCode).toBe(200);
+    expect(me.json()).toMatchObject({ user: { email: 'alice@example.com', name: 'Alice' } });
+
+    const audit = await h.testDb.pool.query(
+      "select meta from audit_log where action = 'auth.login'",
+    );
+    expect(audit.rows[0].meta).toEqual({ provider: 'google' });
   });
 
-  it('連結只能使用一次', async () => {
-    const url = await requestLink('once@example.com');
-    expect((await h.app.inject({ method: 'GET', url })).statusCode).toBe(302);
-    const again = await h.app.inject({ method: 'GET', url });
-    expect(again.statusCode).toBe(400);
-    expect(again.json()).toMatchObject({ error: { code: 'BAD_REQUEST' } });
-  });
-
-  it('15 分鐘後過期', async () => {
-    const url = await requestLink('late@example.com');
-    const base = now;
-    now = new Date(base.getTime() + 15 * 60 * 1000 + 1000);
-    const res = await h.app.inject({ method: 'GET', url });
-    now = base;
-    expect(res.statusCode).toBe(400);
-    const [tok] = await h.testDb.db
+  it('同一個 sub 再登入不會新增使用者', async () => {
+    await h.googleLogin({ ...alice, sub: 'g-same', email: 'same-sub@example.com' });
+    await h.googleLogin({ ...alice, sub: 'g-same', email: 'same-sub@example.com' });
+    const rows = await h.testDb.db
       .select()
-      .from(authTokens)
-      .where(eq(authTokens.email, 'late@example.com'));
-    expect(tok!.usedAt).toBeNull();
+      .from(users)
+      .where(eq(users.email, 'same-sub@example.com'));
+    expect(rows).toHaveLength(1);
   });
 
-  it('同一個 email 再次登入不會重複建立使用者', async () => {
+  it('既有（dev-login）使用者第一次用 Google 登入時依 email 綁定', async () => {
+    await h.login('legacy@example.com');
+    const [before] = await h.testDb.db
+      .select()
+      .from(users)
+      .where(eq(users.email, 'legacy@example.com'));
+    expect(before!.googleSub).toBeNull();
+    const cb = await h.googleLogin({
+      sub: 'g-2',
+      email: 'legacy@example.com',
+      emailVerified: true,
+      name: 'Legacy',
+    });
+    expect(cb.statusCode).toBe(302);
+    expect(loc(cb)).toBe('http://localhost:5173');
+    const rows = await h.testDb.db
+      .select()
+      .from(users)
+      .where(eq(users.email, 'legacy@example.com'));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.id).toBe(before!.id);
+    expect(rows[0]!.googleSub).toBe('g-2');
+  });
+
+  it('email 已綁定其他 sub → google_conflict，不發 session', async () => {
+    await h.googleLogin({ sub: 'g-3', email: 'taken@example.com', emailVerified: true, name: 'T' });
+    const cb = await h.googleLogin({
+      sub: 'g-3-other',
+      email: 'taken@example.com',
+      emailVerified: true,
+      name: 'T2',
+    });
+    expect(cb.statusCode).toBe(302);
+    expect(loc(cb)).toBe('http://localhost:5173/login?error=google_conflict');
+    expect(cb.cookies.find((c) => c.name === 'hpe_session')).toBeUndefined();
+  });
+
+  it('Email 未驗證 → google_email_unverified', async () => {
+    const cb = await h.googleLogin({
+      ...alice,
+      sub: 'g-4',
+      email: 'u@example.com',
+      emailVerified: false,
+    });
+    expect(loc(cb)).toBe('http://localhost:5173/login?error=google_email_unverified');
+    expect(cb.cookies.find((c) => c.name === 'hpe_session')).toBeUndefined();
+    expect(
+      await h.testDb.db.select().from(users).where(eq(users.email, 'u@example.com')),
+    ).toHaveLength(0);
+  });
+
+  it('nonce 不符 → google_failed', async () => {
+    const cb = await h.googleLogin({
+      ...alice,
+      sub: 'g-5',
+      email: 'n@example.com',
+      nonce: 'wrong',
+    });
+    expect(loc(cb)).toBe('http://localhost:5173/login?error=google_failed');
+    expect(cb.cookies.find((c) => c.name === 'hpe_session')).toBeUndefined();
+  });
+
+  it('state 不符、或沒帶 hpe_oauth cookie → google_state', async () => {
+    const start = await h.app.inject({ method: 'GET', url: '/auth/google' });
+    const oauth = start.cookies.find((c) => c.name === 'hpe_oauth')!;
+    const badState = await h.app.inject({
+      method: 'GET',
+      url: '/auth/google/callback?code=abc&state=wrong',
+      headers: { cookie: `hpe_oauth=${oauth.value}` },
+    });
+    expect(loc(badState)).toBe('http://localhost:5173/login?error=google_state');
+    const state = new URL(loc(start)).searchParams.get('state')!;
+    const noCookie = await h.app.inject({
+      method: 'GET',
+      url: `/auth/google/callback?code=abc&state=${state}`,
+    });
+    expect(loc(noCookie)).toBe('http://localhost:5173/login?error=google_state');
+  });
+
+  it('使用者在 Google 取消（?error=access_denied）→ google_denied', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/auth/google/callback?error=access_denied',
+    });
+    expect(loc(res)).toBe('http://localhost:5173/login?error=google_denied');
+  });
+
+  it('未知 code（token 交換失敗）→ google_failed', async () => {
+    const start = await h.app.inject({ method: 'GET', url: '/auth/google' });
+    const oauth = start.cookies.find((c) => c.name === 'hpe_oauth')!;
+    const state = new URL(loc(start)).searchParams.get('state')!;
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/auth/google/callback?code=unknown&state=${state}`,
+      headers: { cookie: `hpe_oauth=${oauth.value}` },
+    });
+    expect(loc(res)).toBe('http://localhost:5173/login?error=google_failed');
+  });
+
+  it('GET /auth/google：導向 Google，code_challenge 對應 cookie 內的 verifier', async () => {
+    const res = await h.app.inject({ method: 'GET', url: '/auth/google' });
+    expect(res.statusCode).toBe(302);
+    const url = new URL(loc(res));
+    expect(url.origin).toBe('https://accounts.example');
+    const oauth = res.cookies.find((c) => c.name === 'hpe_oauth')!;
+    const [state, verifier, nonce] = oauth.value.split('.');
+    expect(url.searchParams.get('state')).toBe(state);
+    expect(url.searchParams.get('nonce')).toBe(nonce);
+    expect(url.searchParams.get('code_challenge')).toBe(pkceChallenge(verifier!));
+    expect(url.searchParams.get('redirect_uri')).toBe('http://localhost:5175/auth/google/callback');
+    expect(oauth.path).toBe('/auth/google');
+    expect(oauth.maxAge).toBe(600);
+    expect(oauth.httpOnly).toBe(true);
+  });
+
+  it('DEV_LOGIN=false → POST /auth/dev-login 回 404', async () => {
+    const off = await createHarness({ config: { devLogin: false } });
+    try {
+      const res = await off.app.inject({
+        method: 'POST',
+        url: '/auth/dev-login',
+        payload: { email: 'a@b.co' },
+      });
+      expect(res.statusCode).toBe(404);
+    } finally {
+      await off.close();
+    }
+  });
+
+  it('未設定 Google → /auth/google 導向 google_not_configured', async () => {
+    const none = await createHarness({ google: null });
+    try {
+      const res = await none.app.inject({ method: 'GET', url: '/auth/google' });
+      expect(res.statusCode).toBe(302);
+      expect(loc(res)).toBe('http://localhost:5173/login?error=google_not_configured');
+    } finally {
+      await none.close();
+    }
+  });
+
+  it('secureCookies=true 時 session cookie 帶 Secure', async () => {
+    const sec = await createHarness({ config: { secureCookies: true } });
+    try {
+      const cb = await sec.googleLogin({ ...alice, sub: 'g-sec', email: 'sec@example.com' });
+      const raw = ([] as string[]).concat(cb.headers['set-cookie'] as string | string[]);
+      expect(raw.find((c) => c.startsWith('hpe_session='))).toMatch(/Secure/i);
+    } finally {
+      await sec.close();
+    }
+  });
+
+  it('dev-login：同一個 email 再次登入不會重複建立使用者', async () => {
     await h.login('same@example.com');
     await h.login('same@example.com');
     const rows = await h.testDb.db.select().from(users).where(eq(users.email, 'same@example.com'));
     expect(rows).toHaveLength(1);
-  });
-
-  it('隨機 token 與格式錯誤都回 400', async () => {
-    expect(
-      (await h.app.inject({ method: 'GET', url: '/auth/callback?token=' + 'x'.repeat(43) }))
-        .statusCode,
-    ).toBe(400);
-    expect((await h.app.inject({ method: 'GET', url: '/auth/callback' })).statusCode).toBe(400);
   });
 
   it('logout 讓 session 失效', async () => {
@@ -99,10 +237,10 @@ describe('magic link 登入', () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it('登入寫入審計日誌', async () => {
+  it('dev-login 寫入審計日誌', async () => {
     await h.login('audit@example.com');
     const res = await h.testDb.pool.query(
-      "select action from audit_log where action = 'auth.login'",
+      "select meta from audit_log where action = 'auth.login' and meta->>'provider' = 'dev'",
     );
     expect(res.rowCount).toBeGreaterThan(0);
   });
@@ -121,7 +259,7 @@ describe('錯誤格式', () => {
     expect(nf.json()).toMatchObject({ error: { code: 'NOT_FOUND' } });
     const bad = await h.app.inject({
       method: 'POST',
-      url: '/auth/magic-link',
+      url: '/auth/dev-login',
       payload: { email: 'not-an-email' },
     });
     expect(bad.statusCode).toBe(400);
@@ -154,7 +292,7 @@ describe('錯誤格式', () => {
     expect(me.headers['cache-control']).toBe('no-store');
   });
 
-  it('magic-link 請求頻率限制', async () => {
+  it('auth 請求頻率限制', async () => {
     const limited = await createHarness({
       config: {
         rateLimits: {
@@ -171,7 +309,7 @@ describe('錯誤格式', () => {
       for (let i = 0; i < 3; i += 1) {
         const r = await limited.app.inject({
           method: 'POST',
-          url: '/auth/magic-link',
+          url: '/auth/dev-login',
           payload: { email: 'a@b.co' },
         });
         codes.push(r.statusCode);
@@ -183,29 +321,6 @@ describe('錯誤格式', () => {
       expect(codes).toEqual([200, 200, 429]);
     } finally {
       await limited.close();
-    }
-  });
-});
-
-describe('正式模式（寄信）', () => {
-  it('DEV_MAGIC_LINK=false：寄出連結、回應不含 devLink、不洩漏帳號是否存在', async () => {
-    const prod = await createHarness({ config: { devMagicLink: false, secureCookies: true } });
-    try {
-      const res = await prod.app.inject({
-        method: 'POST',
-        url: '/auth/magic-link',
-        payload: { email: 'Real@Example.com' },
-      });
-      expect(res.statusCode).toBe(200);
-      expect(res.json()).toEqual({ ok: true });
-      expect(prod.mailer.sent).toHaveLength(1);
-      expect(prod.mailer.sent[0]!.email).toBe('real@example.com');
-      const link = new URL(prod.mailer.sent[0]!.link);
-      const cb = await prod.app.inject({ method: 'GET', url: link.pathname + link.search });
-      expect(String(cb.headers['set-cookie'])).toMatch(/Secure/i);
-      expect(String(cb.headers['set-cookie'])).toMatch(/HttpOnly/i);
-    } finally {
-      await prod.close();
     }
   });
 });

@@ -25,7 +25,7 @@ export const E2E_ENV = {
   API_INTERNAL_ORIGIN: ORIGINS.api,
   INTERNAL_TOKEN: 'e2e-internal-token',
   DATABASE_URL: process.env.E2E_DATABASE_URL ?? 'postgres://localhost:5432/hpe_e2e',
-  DEV_MAGIC_LINK: 'true',
+  DEV_LOGIN: 'true',
   SESSION_SECRET: 'e2e-session-secret-e2e-session-secret',
   STORAGE_DRIVER: 'fs',
   NODE_ENV: 'test',

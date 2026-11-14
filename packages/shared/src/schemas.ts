@@ -289,4 +289,4 @@ export const GuestIdentityBodySchema = z.object({
   guestToken: z.string().max(512).optional(),
 });
 
-export const MagicLinkRequestBodySchema = z.object({ email: z.string().email().max(254) });
+export const DevLoginBodySchema = z.object({ email: z.string().email().max(254) });

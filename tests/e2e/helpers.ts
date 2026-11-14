@@ -17,12 +17,12 @@ export function buildFixtureZip(): string {
   return out;
 }
 
-/** Email magic link 登入（DEV_MAGIC_LINK=true 時 API 直接回傳連結）。 */
+/** 開發登入（DEV_LOGIN=true 時 POST /auth/dev-login 直接以 email 登入；e2e 不可能走真的 Google）。 */
 export async function login(page: Page, email: string): Promise<void> {
-  const res = await page.request.post(`${ORIGINS.api}/auth/magic-link`, { data: { email } });
+  // page.request 與頁面共用同一個 context 的 cookie
+  const res = await page.request.post(`${ORIGINS.api}/auth/dev-login`, { data: { email } });
   expect(res.ok()).toBeTruthy();
-  const { devLink } = (await res.json()) as { devLink: string };
-  await page.goto(devLink);
+  await page.goto(`${ORIGINS.web}/projects`);
   await page.waitForURL(`${ORIGINS.web}/projects`);
 }
 

@@ -60,6 +60,8 @@ const indexRoute = createRoute({
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
+  validateSearch: (s: Record<string, unknown>): { error?: string } =>
+    typeof s.error === 'string' && s.error ? { error: s.error } : {},
   beforeLoad: () => setShareToken(null),
   component: LoginRoute,
 });
