@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+pnpm-lock.yaml
+docs
+tests/security/vectors
+tests/fixtures
+dist-*
+test-results
+playwright-report

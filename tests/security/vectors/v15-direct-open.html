@@ -1,0 +1,21 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><script src="/_lib.js"></script></head><body>
+<script>
+  var r = { origin: String(window.origin), isTop: window === top };
+  // agent 的 polyfill 讓 prototype 自己的程式碼不會壞
+  try { localStorage.setItem('k', 'v'); r.polyfilledLocalStorage = localStorage.getItem('k'); } catch (e) { r.polyfilledLocalStorage = errName(e); }
+  // 沒有 polyfill 的子 frame（繼承 sandbox 旗標）直接看到瀏覽器原生行為
+  runInChild(
+    "try { out.localStorage = String(window.localStorage.getItem('x')); } catch (e) { out.localStorage = e.name; }" +
+    "try { out.sessionStorage = String(window.sessionStorage.getItem('x')); } catch (e) { out.sessionStorage = e.name; }" +
+    "try { out.cookie = String(document.cookie); } catch (e) { out.cookie = e.name; }" +
+    "try { window.indexedDB.open('x'); out.indexedDB = 'opened'; } catch (e) { out.indexedDB = e.name; }" +
+    "out.origin = String(window.origin);",
+    function (out) {
+      r.native = out;
+      report('result', r);
+      report('done');
+    }
+  );
+</script>
+</body></html>

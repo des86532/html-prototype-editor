@@ -1,0 +1,12 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><script src="/_lib.js"></script></head><body>
+<script>
+  var r = {};
+  try { r.cookie = String(parent.document.cookie); } catch (e) { r.cookieErr = errName(e); }
+  try { top.document.body.innerHTML = '<img src=x onerror=alert(1)>'; r.innerHTML = 'no-throw'; } catch (e) { r.innerHTMLErr = errName(e); }
+  try { r.parentStorage = String(parent.localStorage.getItem('hpe_canary')); } catch (e) { r.parentStorageErr = errName(e); }
+  try { r.parentChildren = parent.frames.length; r.parentLocation = String(parent.location.href); } catch (e) { r.parentLocationErr = errName(e); }
+  report('result', r);
+  report('done');
+</script>
+</body></html>

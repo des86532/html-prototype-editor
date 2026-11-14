@@ -1,0 +1,21 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><script src="/_lib.js"></script></head><body>
+<a id="blank" target="_blank" href="http://evil.localhost:6100/popup-anchor">blank</a>
+<script>
+  var r = {};
+  // 1) agent 的 window.open polyfill
+  r.agentOpen = window.open('http://evil.localhost:6100/popup-agent') === null ? 'null' : 'window';
+  // 2) <a target=_blank>：agent 的導覽守衛會擋
+  document.getElementById('blank').click();
+  // 3) 沒有 agent 的子 frame（繼承 sandbox 旗標）：原生 window.open、<a target=_blank>、<form target=_blank>
+  runInChild(
+    "try { out.nativeOpen = window.open('http://evil.localhost:6100/popup-native') === null ? 'null' : 'window'; } catch (e) { out.nativeOpen = e.name; }" +
+    "var a = document.createElement('a'); a.target = '_blank'; a.href = 'http://evil.localhost:6100/popup-native-anchor'; document.body.appendChild(a); a.click();" +
+    "var f = document.createElement('form'); f.target = '_blank'; f.action = 'http://evil.localhost:6100/popup-native-form'; document.body.appendChild(f); try { f.submit(); } catch (e) { out.formErr = e.name; }",
+    function (out) {
+      r.child = out;
+      setTimeout(function () { report('result', r); report('done'); }, 600);
+    }
+  );
+</script>
+</body></html>

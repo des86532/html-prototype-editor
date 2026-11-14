@@ -1,0 +1,14 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><script src="/_lib.js"></script></head><body>
+<script>
+  var r = { confirm: null, prompt: 'unset' };
+  for (var i = 0; i < 5000; i++) {
+    alert('A' + i);
+    r.confirm = confirm('C' + i);
+    r.prompt = prompt('P' + i);
+  }
+  var n = 0;
+  var id = setInterval(function () { alert('tick ' + n); if (++n > 20) clearInterval(id); }, 20);
+  setTimeout(function () { report('result', r); report('done'); }, 1500);
+</script>
+</body></html>

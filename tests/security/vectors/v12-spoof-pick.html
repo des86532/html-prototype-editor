@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><script src="/_lib.js"></script></head><body>
+<script>
+  var evil = '<img src=x onerror="window.__xss=1;alert(1)">';
+  var draft = {
+    pageId: 'index.html', kind: 'element',
+    viewport: { width: 800, height: 600, dpr: 1 },
+    selectors: {
+      css: evil, xpath: '<script>window.__xss=2<\/script>',
+      textQuote: { exact: evil, prefix: '', suffix: '' },
+      fingerprint: { tag: 'img', classes: [evil], textHash: 'x', siblingIndex: 0, depth: 1 },
+      elementOffset: { x: 0.5, y: 0.5 }
+    },
+    fallback: { x: 1, y: 2, w: 3, h: 4 },
+    snapshot: { tag: 'img', text: evil }
+  };
+  parent.postMessage({ v: 1, type: 'pick', draft: draft, rect: { x: 1, y: 2, w: 3, h: 4 } }, '*');
+  parent.postMessage({ v: 1, type: 'hover', rect: null, label: evil }, '*');
+  parent.postMessage({ v: 1, type: 'dialog', kind: 'alert', text: evil }, '*');
+  // 超過 1 KB 的 selector：schema 要擋下來
+  var tooLong = JSON.parse(JSON.stringify(draft));
+  tooLong.selectors.css = 'a'.repeat(2000);
+  parent.postMessage({ v: 1, type: 'pick', draft: tooLong, rect: { x: 1, y: 2, w: 3, h: 4 } }, '*');
+  // 帶有額外欄位／錯誤型別的訊息
+  parent.postMessage({ v: 1, type: 'geometry', viewport: { w: '800', h: 600 }, rects: {} }, '*');
+  parent.postMessage({ v: 1, type: 'navigateRequest', pageId: evil }, '*');
+  setTimeout(function () { report('result', {}); report('done'); }, 600);
+</script>
+</body></html>

@@ -1,0 +1,17 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><script src="/_lib.js"></script></head><body>
+<script>
+  var r = {};
+  var pending = 3;
+  function fin() { if (--pending === 0) { report('result', r); report('done'); } }
+  try {
+    navigator.geolocation.getCurrentPosition(function () { r.geolocation = 'granted'; fin(); }, function (e) { r.geolocation = 'denied:' + e.code; fin(); }, { timeout: 3000 });
+  } catch (e) { r.geolocation = 'threw:' + errName(e); fin(); }
+  try {
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(function () { r.getUserMedia = 'granted'; fin(); }, function (e) { r.getUserMedia = 'denied:' + errName(e); fin(); });
+  } catch (e) { r.getUserMedia = 'threw:' + errName(e); fin(); }
+  try {
+    navigator.clipboard.readText().then(function () { r.clipboard = 'granted'; fin(); }, function (e) { r.clipboard = 'denied:' + errName(e); fin(); });
+  } catch (e) { r.clipboard = 'threw:' + errName(e); fin(); }
+</script>
+</body></html>

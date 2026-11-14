@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" id="s">
+  <rect width="200" height="100" fill="#fcc"/>
+  <script><![CDATA[
+    var r = { origin: String(window.origin) };
+    try { r.localStorage = String(window.localStorage.getItem('x')); } catch (e) { r.localStorage = e && e.name; }
+    try { r.cookie = String(document.cookie); } catch (e) { r.cookie = e && e.name; }
+    document.getElementById('s').setAttribute('data-result', JSON.stringify(r));
+    window.__vectorResults = [{ name: 'result', data: r }];
+  ]]></script>
+</svg>
