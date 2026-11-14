@@ -13,8 +13,23 @@ import { OwnerViewerRoute } from '@/routes/OwnerViewerRoute';
 import { ProjectRoute } from '@/routes/ProjectRoute';
 import { ProjectsRoute } from '@/routes/ProjectsRoute';
 import { ShareRoute } from '@/routes/ShareRoute';
+import { LoadingState, StateMessage } from '@/routes/StateMessage';
 
-const rootRoute = createRootRoute({ component: Outlet });
+const rootRoute = createRootRoute({
+  component: Outlet,
+  pendingComponent: LoadingState,
+  errorComponent: ({ error }) => (
+    <StateMessage title="無法載入頁面">
+      <p className="mb-4">{error instanceof Error ? error.message : '發生未預期的錯誤'}</p>
+      <a
+        href="/login"
+        className="inline-block rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+      >
+        前往登入頁
+      </a>
+    </StateMessage>
+  ),
+});
 
 /** 擁有者路由：清掉殘留的分享 token，並要求已登入。 */
 async function requireOwner(): Promise<void> {
@@ -24,9 +39,12 @@ async function requireOwner(): Promise<void> {
       queryKey: ['me'],
       queryFn: () => api.me(),
       staleTime: 30_000,
+      retry: false,
     });
   } catch (e) {
-    if (isApiError(e) && e.code === 'UNAUTHENTICATED') throw redirect({ to: '/login' });
+    if (isApiError(e) && (e.code === 'UNAUTHENTICATED' || e.code === 'NETWORK')) {
+      throw redirect({ to: '/login' });
+    }
     throw e;
   }
 }
