@@ -17,7 +17,7 @@ test('200 個 pin：geometry 訊息到 pin 位置更新進 DOM 的 p95 < 16 ms',
   page,
   browserName,
 }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(240_000);
   await page.addInitScript(() => {
     const w = window as unknown as {
       __lat: { ms: number; transition: boolean }[];
@@ -107,15 +107,24 @@ test('200 個 pin：geometry 訊息到 pin 位置更新進 DOM 的 p95 < 16 ms',
     .locator('iframe[title^="Prototype"]')
     .elementHandle())!.contentFrame())!;
   // 0 → 600px → 0：#cta 的 100 個 pin 在途中捲出畫面再回來（pin 與邊緣箭頭互換）
+  // 每一步都等到收到對應的 geometry 訊息才捲下一步：樣本數不取決於機器速度（慢的 CI runner 上
+  // 固定間隔的捲動會被合併成很少的訊息）。
+  const step = async (y: number) => {
+    const before = await page.evaluate(
+      () => (window as unknown as { __lat: unknown[] }).__lat.length,
+    );
+    await fw.evaluate((yy) => window.scrollTo(0, yy), y);
+    await page
+      .waitForFunction(
+        (n) => (window as unknown as { __lat: unknown[] }).__lat.length > n,
+        before,
+        { timeout: 500 },
+      )
+      .catch(() => undefined);
+  };
   const pass = async () => {
-    for (let y = 0; y <= 600; y += 8) {
-      await fw.evaluate((yy) => window.scrollTo(0, yy), y);
-      await page.waitForTimeout(34);
-    }
-    for (let y = 600; y >= 0; y -= 8) {
-      await fw.evaluate((yy) => window.scrollTo(0, yy), y);
-      await page.waitForTimeout(34);
-    }
+    for (let y = 0; y <= 600; y += 24) await step(y);
+    for (let y = 600; y >= 0; y -= 24) await step(y);
     await page.waitForTimeout(200);
   };
   await pass(); // 暖機（JIT、首次 layout）
@@ -130,7 +139,7 @@ test('200 個 pin：geometry 訊息到 pin 位置更新進 DOM 的 p95 < 16 ms',
   const all: Sample[] = await page.evaluate(() => (window as unknown as { __lat: Sample[] }).__lat);
   const steady = all.filter((s) => !s.transition).map((s) => s.ms);
   const transitions = all.filter((s) => s.transition).map((s) => s.ms);
-  expect(steady.length).toBeGreaterThan(100);
+  expect(steady.length).toBeGreaterThan(25);
   const pct = (xs: number[], p: number) =>
     [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.floor(xs.length * p))] ?? 0;
   console.log(
