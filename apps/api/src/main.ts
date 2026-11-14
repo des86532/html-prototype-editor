@@ -1,18 +1,18 @@
 import path from 'node:path';
 import dotenv from 'dotenv';
 import { buildApp } from './app.js';
+import { GoogleOAuthClient } from './auth/google.js';
 import { loadConfig, REPO_ROOT } from './config.js';
 import { createDb } from './db/client.js';
-import { NoopMailer, SmtpMailer } from './mail.js';
 import { createStorage } from './storage/index.js';
 
 dotenv.config({ path: path.join(REPO_ROOT, '.env'), quiet: true });
 
 const config = loadConfig();
 const { db, close } = createDb(config.databaseUrl);
-const mailer = config.smtp ? SmtpMailer.fromConfig(config.smtp) : new NoopMailer();
+const google = config.google ? new GoogleOAuthClient(config.google) : null;
 const app = await buildApp(
-  { config, db, storage: createStorage(config), mailer },
+  { config, db, storage: createStorage(config), google },
   { logger: true },
 );
 

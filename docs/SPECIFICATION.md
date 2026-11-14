@@ -400,7 +400,7 @@ export type FrameToParent =
 20. `ExportDialog`：選格式、篩選範圍、顯示預估大小。
 
 **M6 分享與權限（依賴 M4，可以和 M5 平行）**
-21. 擁有者登入（GitHub OAuth 或 Email magic link），session 用 HttpOnly + Secure + SameSite=Lax 的 cookie。
+21. 擁有者登入（Google OAuth 2.0 + PKCE；開發／e2e 用 `DEV_LOGIN`），session 用 HttpOnly + Secure + SameSite=Lax 的 cookie。
 22. 分享連結：32-byte 隨機 token，DB 只存 sha256，可設角色、到期、撤銷；`GuestIdentityPrompt` 填名字，guestId 存在 localStorage；開啟頻率限制。
 23. 審計日誌（記錄撤銷、刪除、換 contentKey）。
 

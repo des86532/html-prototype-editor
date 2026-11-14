@@ -24,6 +24,8 @@ export const users = pgTable('users', {
   id: text('id').primaryKey(),
   email: text('email').notNull().unique(),
   name: text('name').notNull(),
+  /** Google OIDC `sub`。既有使用者第一次用 Google 登入時依 email 綁定。 */
+  googleSub: text('google_sub').unique(),
   createdAt: ts('created_at').notNull().defaultNow(),
 });
 
@@ -179,14 +181,6 @@ export const auditLog = pgTable(
   },
   (t) => [index('audit_log_at_idx').on(t.at)],
 );
-
-export const authTokens = pgTable('auth_tokens', {
-  hash: text('hash').primaryKey(),
-  email: text('email').notNull(),
-  expiresAt: ts('expires_at').notNull(),
-  usedAt: ts('used_at'),
-  createdAt: ts('created_at').notNull().defaultNow(),
-});
 
 export const sessions = pgTable(
   'sessions',

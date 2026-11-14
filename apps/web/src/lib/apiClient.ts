@@ -198,6 +198,11 @@ export function apiBaseUrl(): string {
   return env.VITE_API_ORIGIN ?? env.API_ORIGIN ?? 'http://localhost:5175';
 }
 
+/** Google 登入入口：頂層導覽到 API，由 API 導向 Google。 */
+export function googleLoginUrl(): string {
+  return `${apiBaseUrl().replace(/\/+$/, '')}${buildPath('googleLogin')}`;
+}
+
 export const apiClient = new ApiClient({
   baseUrl: apiBaseUrl(),
   getShareToken,

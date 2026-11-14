@@ -6,7 +6,8 @@ export interface AppCspInput {
   /** 例如 content.localhost:5174 或 protousercontent.net */
   contentBaseDomain: string;
   contentScheme: 'http' | 'https';
-  apiOrigin: string;
+  /** 跨 origin 的 API 才需要列入 connect-src；同源（例如經 Pages Function 代理的 `/api`）省略即可。 */
+  apiOrigin?: string;
 }
 
 export function buildAppCsp({ contentBaseDomain, contentScheme, apiOrigin }: AppCspInput): string {
@@ -16,7 +17,7 @@ export function buildAppCsp({ contentBaseDomain, contentScheme, apiOrigin }: App
     "style-src 'self'",
     "img-src 'self' data: blob:",
     `frame-src ${contentScheme}://*.${contentBaseDomain}`,
-    `connect-src 'self' ${apiOrigin}`,
+    `connect-src 'self'${apiOrigin ? ` ${apiOrigin}` : ''}`,
     "object-src 'none'",
     "base-uri 'none'",
     "frame-ancestors 'none'",

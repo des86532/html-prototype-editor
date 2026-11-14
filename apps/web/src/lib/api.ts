@@ -8,7 +8,6 @@ import type {
   ExportQuery,
   GuestIdentityResponse,
   ListProjectsResponse,
-  MagicLinkResponse,
   MeResponse,
   ProjectDetailResponse,
   ProjectResponse,
@@ -30,7 +29,7 @@ import { apiClient, type ApiClient, type DownloadResult } from './apiClient';
 export function createApi(c: ApiClient) {
   return {
     me: () => c.request<MeResponse>('me'),
-    magicLink: (email: string) => c.request<MagicLinkResponse>('magicLink', { json: { email } }),
+    devLogin: (email: string) => c.request<MeResponse>('devLogin', { json: { email } }),
     logout: () => c.request<void>('logout'),
 
     listProjects: () => c.request<ListProjectsResponse>('listProjects'),

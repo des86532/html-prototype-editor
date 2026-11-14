@@ -32,7 +32,7 @@ pnpm --filter @hpe/frame-agent build
 pnpm dev                         # web :5173、content :5174、api :5175
 ```
 
-開發環境的 prototype 內容網域用 `*.localhost`（`content.localhost:5174`）；Chromium、Firefox 會把它解析到本機。登入使用 Email magic link，`DEV_MAGIC_LINK=true` 時 API 直接回傳連結（正式環境必須設定 SMTP，且不可開啟 DEV_MAGIC_LINK）。
+開發環境的 prototype 內容網域用 `*.localhost`（`content.localhost:5174`）；Chromium、Firefox 會把它解析到本機。登入使用 Google（OAuth 2.0 Authorization Code + PKCE）：在 Google Cloud Console 建立「Web application」OAuth client，Authorized redirect URI 填 `${API_ORIGIN}/auth/google/callback`（開發環境為 `http://localhost:5175/auth/google/callback`，正式環境為 `https://html-prototype-editor.pages.dev/api/auth/google/callback`），並設定 `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`。正式部署（Cloudflare Pages ＋自己的機器 ＋ Tunnel）見 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。開發與 e2e 可設 `DEV_LOGIN=true`，用 `POST /auth/dev-login` 直接以 email 登入（`NODE_ENV=production` 禁止開啟）。
 
 ### 環境變數
 
@@ -43,7 +43,8 @@ pnpm dev                         # web :5173、content :5174、api :5175
 | `DATABASE_URL`                                | PostgreSQL 連線字串                                                                                                            |
 | `STORAGE_DRIVER` / `STORAGE_FS_ROOT` / `S3_*` | 資產儲存：`fs`（預設）或 S3 相容（MinIO）                                                                                      |
 | `SESSION_SECRET`                              | session 與訪客 token 簽章                                                                                                      |
-| `DEV_MAGIC_LINK` / `SMTP_*`                   | magic link 寄送方式                                                                                                            |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`   | Google 登入的 OAuth client；兩者必須同時設定。`DEV_LOGIN=false` 時為必填                                                       |
+| `DEV_LOGIN`                                   | 開發／e2e 用的 `POST /auth/dev-login`；`NODE_ENV=production` 時不可開啟                                                        |
 | `INTERNAL_TOKEN` / `API_INTERNAL_ORIGIN`      | content server 呼叫 API 內部端點用，兩邊必須相同；`NODE_ENV=production` 時必填                                                 |
 | `CONTENT_RESOLVE_CACHE_MS`                    | content server 對 contentKey 解析結果的快取（預設 0＝輪替立即生效）                                                            |
 | `EXPORT_SHELL_PATH` / `AGENT_BUNDLE_PATH`     | 單檔匯出用的 shell 與 agent 建置產物（預設 `packages/export-viewer/dist/index.html`、`packages/frame-agent/dist/agent.v1.js`） |
