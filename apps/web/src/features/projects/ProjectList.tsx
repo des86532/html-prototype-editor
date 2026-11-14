@@ -50,11 +50,11 @@ export function ProjectList({ onOpenProject, api = defaultApi }: ProjectListProp
   };
 
   return (
-    <section className="space-y-4">
-      <h1 className="text-xl font-semibold text-slate-900">我的專案</h1>
-      <form onSubmit={submit} className="flex items-end gap-2">
+    <section className="space-y-6">
+      <h1 className="text-2xl font-semibold tracking-tight text-ink">我的專案</h1>
+      <form onSubmit={submit} className="card flex items-end gap-2 p-4">
         <div className="flex-1">
-          <label htmlFor={nameId} className="mb-1 block text-sm font-medium text-slate-700">
+          <label htmlFor={nameId} className="field-label">
             新專案名稱
           </label>
           <input
@@ -62,59 +62,64 @@ export function ProjectList({ onOpenProject, api = defaultApi }: ProjectListProp
             value={name}
             maxLength={120}
             onChange={(e) => setName(e.target.value)}
-            className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+            className="input"
           />
         </div>
         <button
           type="submit"
           disabled={create.isPending || !name.trim()}
-          className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="btn btn-primary"
         >
           建立專案
         </button>
       </form>
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger">
           {error}
         </p>
       )}
       {list.isPending ? (
-        <p className="text-sm text-slate-500">載入中…</p>
+        <p className="text-sm text-ink-3">載入中…</p>
       ) : list.isError ? (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger">
           {messageForError(list.error)}
         </p>
       ) : list.data.length === 0 ? (
-        <p className="text-sm text-slate-500">還沒有任何專案，先建立一個吧。</p>
+        <p className="rounded-lg border border-dashed border-line-strong p-8 text-center text-sm text-ink-3">
+          還沒有任何專案，先建立一個吧。
+        </p>
       ) : (
-        <ul className="divide-y divide-slate-200 rounded border border-slate-200">
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {list.data.map((p) => (
-            <li key={p.id} className="flex items-center gap-3 p-3">
+            <li
+              key={p.id}
+              className="card flex flex-col gap-3 p-4 transition-colors hover:border-line-strong"
+            >
               <button
                 type="button"
                 onClick={() => onOpenProject(p.id)}
-                className="min-w-0 flex-1 text-left"
+                className="min-w-0 text-left"
               >
-                <span className="block truncate font-medium text-slate-900">{p.name}</span>
-                <span className="block text-xs text-slate-500">
+                <span className="block truncate font-semibold text-ink">{p.name}</span>
+                <span className="block text-xs text-ink-3">
                   建立於 {formatRelativeTime(p.createdAt)}
                 </span>
               </button>
               {confirmId === p.id ? (
-                <span className="flex items-center gap-2 text-sm">
+                <span className="flex flex-wrap items-center gap-2 text-sm text-ink-2">
                   <span>確定刪除「{p.name}」？</span>
                   <button
                     type="button"
                     disabled={remove.isPending}
                     onClick={() => remove.mutate(p.id)}
-                    className="rounded bg-red-600 px-2 py-1 text-xs text-white disabled:opacity-50"
+                    className="btn btn-danger-solid btn-sm"
                   >
                     確認刪除
                   </button>
                   <button
                     type="button"
                     onClick={() => setConfirmId(null)}
-                    className="rounded px-2 py-1 text-xs text-slate-600"
+                    className="btn btn-ghost btn-sm"
                   >
                     取消
                   </button>
@@ -124,7 +129,7 @@ export function ProjectList({ onOpenProject, api = defaultApi }: ProjectListProp
                   type="button"
                   aria-label={`刪除 ${p.name}`}
                   onClick={() => setConfirmId(p.id)}
-                  className="rounded border border-red-300 px-2 py-1 text-xs text-red-700"
+                  className="btn btn-ghost btn-sm self-end text-danger"
                 >
                   刪除
                 </button>

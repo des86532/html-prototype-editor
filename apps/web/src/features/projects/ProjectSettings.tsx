@@ -32,30 +32,32 @@ export function ProjectSettings({ projectId, onDeleted, api = defaultApi }: Proj
   return (
     <section className="space-y-6">
       <div>
-        <h2 className="mb-2 text-lg font-semibold text-slate-900">專案資訊</h2>
+        <h2 className="mb-2 text-lg font-semibold text-ink">專案資訊</h2>
         {detail.isPending ? (
-          <p className="text-sm text-slate-500">載入中…</p>
+          <p className="text-sm text-ink-3">載入中…</p>
         ) : detail.isError ? (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-danger">
             {messageForError(detail.error)}
           </p>
         ) : (
-          <dl className="grid grid-cols-[6rem_1fr] gap-1 text-sm">
-            <dt className="text-slate-500">名稱</dt>
+          <dl className="grid grid-cols-[6rem_1fr] gap-1 text-sm text-ink">
+            <dt className="text-ink-3">名稱</dt>
             <dd>{detail.data.project.name}</dd>
-            <dt className="text-slate-500">建立時間</dt>
-            <dd>{new Date(detail.data.project.createdAt).toLocaleString('zh-TW')}</dd>
-            <dt className="text-slate-500">版本數</dt>
-            <dd>{detail.data.versions.length}</dd>
+            <dt className="text-ink-3">建立時間</dt>
+            <dd className="font-mono">
+              {new Date(detail.data.project.createdAt).toLocaleString('zh-TW')}
+            </dd>
+            <dt className="text-ink-3">版本數</dt>
+            <dd className="font-mono">{detail.data.versions.length}</dd>
           </dl>
         )}
       </div>
 
-      <div className="space-y-2 rounded border border-red-300 p-4">
-        <h2 className="text-lg font-semibold text-red-700">危險區域</h2>
-        <p className="text-sm text-slate-600">刪除專案會一併刪除所有版本與留言，且無法復原。</p>
+      <div className="space-y-2 rounded-md border border-danger/40 p-4">
+        <h2 className="text-lg font-semibold text-danger">危險區域</h2>
+        <p className="text-sm text-ink-2">刪除專案會一併刪除所有版本與留言，且無法復原。</p>
         {error && (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-danger">
             {error}
           </p>
         )}
@@ -65,24 +67,16 @@ export function ProjectSettings({ projectId, onDeleted, api = defaultApi }: Proj
               type="button"
               disabled={remove.isPending}
               onClick={() => remove.mutate()}
-              className="rounded bg-red-600 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+              className="btn btn-danger-solid"
             >
               確認刪除專案
             </button>
-            <button
-              type="button"
-              onClick={() => setConfirming(false)}
-              className="rounded px-3 py-1.5 text-sm text-slate-600"
-            >
+            <button type="button" onClick={() => setConfirming(false)} className="btn btn-ghost">
               取消
             </button>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => setConfirming(true)}
-            className="rounded border border-red-400 px-3 py-1.5 text-sm text-red-700"
-          >
+          <button type="button" onClick={() => setConfirming(true)} className="btn btn-danger">
             刪除專案
           </button>
         )}

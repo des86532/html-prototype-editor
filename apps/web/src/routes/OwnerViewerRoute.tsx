@@ -60,11 +60,7 @@ export function OwnerViewerRoute() {
         initialThreadId={thread ?? null}
         onExport={() => setExportOpen(true)}
         headerExtra={
-          <Link
-            to="/p/$projectId"
-            params={{ projectId }}
-            className="text-sm text-blue-600 underline"
-          >
+          <Link to="/p/$projectId" params={{ projectId }} className="btn btn-ghost btn-sm">
             ← 專案
           </Link>
         }

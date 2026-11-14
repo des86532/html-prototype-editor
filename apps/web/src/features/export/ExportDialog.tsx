@@ -76,7 +76,7 @@ export function ExportDialog({
     <Modal open={open} title={projectName ? `匯出：${projectName}` : '匯出'} onClose={onClose}>
       <div className="space-y-4">
         <fieldset className="space-y-1">
-          <legend className="text-sm font-medium text-slate-800">格式</legend>
+          <legend className="field-label">格式</legend>
           {EXPORT_FORMATS.map((f) => (
             <label key={f} className="flex items-center gap-2 text-sm">
               <input
@@ -93,14 +93,14 @@ export function ExportDialog({
 
         <div className="flex flex-wrap gap-4">
           <div>
-            <label htmlFor={statusId} className="mb-1 block text-sm font-medium text-slate-700">
+            <label htmlFor={statusId} className="field-label">
               狀態
             </label>
             <select
               id={statusId}
               value={status}
               onChange={(e) => setStatus(e.target.value as typeof status)}
-              className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+              className="input w-auto"
             >
               <option value="all">全部</option>
               <option value="open">open</option>
@@ -108,14 +108,14 @@ export function ExportDialog({
             </select>
           </div>
           <div>
-            <label htmlFor={tagId} className="mb-1 block text-sm font-medium text-slate-700">
+            <label htmlFor={tagId} className="field-label">
               標籤
             </label>
             <select
               id={tagId}
               value={tag}
               onChange={(e) => setTag(e.target.value as typeof tag)}
-              className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+              className="input w-auto"
             >
               <option value="all">全部</option>
               {(Object.keys(TAG_LABELS) as ThreadTag[]).map((t) => (
@@ -127,11 +127,11 @@ export function ExportDialog({
           </div>
         </div>
 
-        <section aria-label="預估大小" className="rounded bg-slate-50 p-3 text-sm">
+        <section aria-label="預估大小" className="rounded-md bg-paper p-3 text-sm">
           {estimate.isPending ? (
-            <p className="text-slate-500">計算預估大小中…</p>
+            <p className="text-ink-3">計算預估大小中…</p>
           ) : estimate.isError ? (
-            <p role="alert" className="text-red-600">
+            <p role="alert" className="text-danger">
               {messageForError(estimate.error)}
             </p>
           ) : (
@@ -147,30 +147,26 @@ export function ExportDialog({
         {est?.warnLargeHtml && (
           <p
             role="alert"
-            className="rounded border border-amber-400 bg-amber-100 p-3 text-sm font-semibold text-amber-900"
+            className="rounded-md border border-warn/30 bg-warn-soft p-3 text-sm font-semibold text-warn"
           >
             單檔 HTML 預估超過 20 MB，開啟可能較慢
           </p>
         )}
 
         {error && (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-danger">
             {error}
           </p>
         )}
         <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded px-4 py-2 text-sm text-slate-600"
-          >
+          <button type="button" onClick={onClose} className="btn btn-ghost">
             關閉
           </button>
           <button
             type="button"
             disabled={download.isPending}
             onClick={() => download.mutate()}
-            className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="btn btn-primary"
           >
             {download.isPending ? '匯出中…' : '下載'}
           </button>

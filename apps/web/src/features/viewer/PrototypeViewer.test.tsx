@@ -82,6 +82,21 @@ describe('PrototypeViewer', () => {
     expect(iframe).toHaveAttribute('sandbox', 'allow-scripts');
   });
 
+  it('the toolbar can be collapsed and expanded again', async () => {
+    mount();
+    const user = userEvent.setup();
+    expect(screen.getByRole('toolbar', { name: 'Viewer 工具列' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '收合工具列' }));
+    expect(screen.queryByRole('toolbar', { name: 'Viewer 工具列' })).toBeNull();
+    expect(screen.getByRole('button', { name: '展開工具列' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    await user.click(screen.getByRole('button', { name: '展開工具列' }));
+    expect(screen.getByRole('toolbar', { name: 'Viewer 工具列' })).toBeInTheDocument();
+    useUiStore.getState().setToolbarCollapsed(false);
+  });
+
   it('on ready: init → resolveAnchors for the page’s threads → trackAnchors', async () => {
     const other = makeThread(2, { anchor: makeAnchor({ pageId: 'about.html' }) });
     const { fromFrame, sent, api } = mount({}, [t1, other]);

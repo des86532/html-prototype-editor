@@ -20,7 +20,7 @@ export function HoverHighlight({ rect, label, scale, frameOffset }: HoverHighlig
     <div
       data-testid="hover-highlight"
       aria-hidden="true"
-      className="pointer-events-none absolute border-2 border-blue-500 bg-blue-500/10"
+      className="pointer-events-none absolute border-2 border-measure bg-measure/10"
       style={{
         left: rect.x * scale + ox,
         top: rect.y * scale + oy,
@@ -29,7 +29,7 @@ export function HoverHighlight({ rect, label, scale, frameOffset }: HoverHighlig
       }}
     >
       {label && (
-        <span className="absolute -top-5 left-[-2px] max-w-64 truncate rounded bg-blue-600 px-1 text-[10px] text-white">
+        <span className="absolute -top-5 left-[-2px] max-w-64 truncate rounded bg-measure px-1 text-[10px] text-white">
           {truncate(label, 80)}
         </span>
       )}

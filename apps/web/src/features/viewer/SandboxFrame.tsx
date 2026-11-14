@@ -21,6 +21,7 @@ export const SandboxFrame = forwardRef<HTMLIFrameElement, SandboxFrameProps>(fun
   return (
     <div
       data-testid="sandbox-frame-wrapper"
+      className="frame-shadow"
       style={{
         width: width * scale,
         height: height * scale,

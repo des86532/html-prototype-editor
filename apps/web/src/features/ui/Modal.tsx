@@ -58,7 +58,7 @@ export function Modal({ open, title, onClose, children, widthClass = 'max-w-lg' 
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
       data-testid="modal-backdrop"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -70,17 +70,17 @@ export function Modal({ open, title, onClose, children, widthClass = 'max-w-lg' 
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`max-h-[90vh] w-full overflow-y-auto rounded-lg bg-white p-6 shadow-xl outline-none ${widthClass}`}
+        className={`card max-h-[90vh] w-full overflow-y-auto p-6 shadow-xl outline-none ${widthClass}`}
       >
         <div className="mb-4 flex items-center justify-between gap-4">
-          <h2 id={titleId} className="text-lg font-semibold text-slate-900">
+          <h2 id={titleId} className="text-base font-semibold text-ink">
             {title}
           </h2>
           <button
             type="button"
             aria-label="關閉"
             onClick={onClose}
-            className="rounded px-2 py-1 text-slate-500 hover:bg-slate-100"
+            className="btn btn-ghost btn-sm"
           >
             ✕
           </button>

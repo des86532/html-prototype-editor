@@ -125,6 +125,34 @@ describe('picker: comment mode', () => {
     expect(picks(sent)[0]!.draft.kind).toBe('element');
   });
 
+  it('a click in the gap beside a child binds to the nearest child within 16px', () => {
+    const { sent } = setup();
+    const s = document.getElementById('s')!;
+    fire(s, 'pointerdown', { clientX: 185, clientY: 120 });
+    fire(s, 'pointerup', { clientX: 185, clientY: 120 });
+    const [pick] = picks(sent);
+    expect(pick!.draft.selectors.css).toBe('#b');
+    expect(pick!.draft.selectors.elementOffset!.x).toBe(1);
+  });
+
+  it('a click farther than 16px from every child stays on the container', () => {
+    const { sent } = setup();
+    const s = document.getElementById('s')!;
+    fire(s, 'pointerdown', { clientX: 470, clientY: 195 });
+    fire(s, 'pointerup', { clientX: 470, clientY: 195 });
+    expect(picks(sent)[0]!.draft.selectors.css).toBe('#s');
+  });
+
+  it('hover outlines the child the click would bind to', () => {
+    const { sent } = setup();
+    const s = document.getElementById('s')!;
+    fire(s, 'pointermove', { clientX: 185, clientY: 120 });
+    raf.flush();
+    expect(sent.filter((m) => m.type === 'hover').at(-1)).toMatchObject({
+      rect: { x: 100, y: 100, w: 80, h: 40 },
+    });
+  });
+
   it('a drag past 8px is a region anchored on the common ancestor, with rubber-band hover', () => {
     const { sent } = setup();
     const b = document.getElementById('b')!;

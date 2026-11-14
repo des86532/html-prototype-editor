@@ -49,6 +49,32 @@ const rectOf = (el: Element): Rect => {
   return { x: r.left, y: r.top, w: r.width, h: r.height };
 };
 
+/** 點在容器空白處（例如 flex gap）時，改綁 SNAP_PX 內最近的子元素，讓 pin 跟著該子元素重排。 */
+export const SNAP_PX = 16;
+const MAX_SNAP_CHILDREN = 200;
+
+export function snapTarget(el: Element | null, x: number, y: number): Element | null {
+  if (!el || el === document.documentElement) return el;
+  const n = el.childElementCount;
+  if (n === 0 || n > MAX_SNAP_CHILDREN) return el;
+  let best: Element | null = null;
+  let bestD = Infinity;
+  for (const child of Array.from(el.children)) {
+    const r = rectOf(child);
+    if (r.w <= 0 || r.h <= 0) continue;
+    const d = Math.hypot(
+      Math.max(r.x - x, 0, x - (r.x + r.w)),
+      Math.max(r.y - y, 0, y - (r.y + r.h)),
+    );
+    if (d === 0) return child;
+    if (d < bestD) {
+      best = child;
+      bestD = d;
+    }
+  }
+  return best && bestD <= SNAP_PX ? best : el;
+}
+
 /** 例如 `button.cta "Start free trial"`，給 parent 畫 hover 框時當標籤。 */
 function labelOf(el: Element): string {
   const cls = Array.from(el.classList).find(isStableClass);
@@ -165,7 +191,7 @@ export const installPicker: AgentModule = (bridge: AgentBridge) => {
     } else if (end) {
       pick(() =>
         describe({
-          element: end,
+          element: snapTarget(end, e.clientX, e.clientY)!,
           kind: 'element',
           pageId,
           viewport: viewportInfo(),
@@ -234,9 +260,9 @@ export const installPicker: AgentModule = (bridge: AgentBridge) => {
           hoverEl = null;
           scheduleHover(rubberBand(press, me), '區域');
         }
-      } else hoverTo(elementOf(e.target));
+      } else hoverTo(snapTarget(elementOf(e.target), me.clientX, me.clientY));
     } else if (type === 'pointerover' || type === 'mouseover') {
-      if (!press) hoverTo(elementOf(e.target));
+      if (!press) hoverTo(snapTarget(elementOf(e.target), me.clientX, me.clientY));
     } else if (type === 'pointerout' || type === 'mouseout') {
       if (!press && me.relatedTarget === null) hoverTo(null);
     }

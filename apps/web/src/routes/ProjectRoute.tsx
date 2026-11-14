@@ -1,25 +1,28 @@
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { ProjectDetail } from '@/features/projects/ProjectDetail';
+import { AppHeader } from '@/features/ui/AppHeader';
 
 export function ProjectRoute() {
   const { projectId } = useParams({ strict: false }) as { projectId: string };
   const navigate = useNavigate();
   return (
-    <main className="mx-auto max-w-4xl p-6">
-      <nav className="mb-4 text-sm">
-        <Link to="/projects" className="text-blue-600 underline">
+    <>
+      <AppHeader>
+        <Link to="/projects" className="link text-sm">
           ← 所有專案
         </Link>
-      </nav>
-      <ProjectDetail
-        projectId={projectId}
-        onOpenVersion={(versionNumber) =>
-          void navigate({
-            to: '/p/$projectId/v/$versionNumber',
-            params: { projectId, versionNumber: String(versionNumber) },
-          })
-        }
-      />
-    </main>
+      </AppHeader>
+      <main className="mx-auto max-w-5xl px-6 py-10">
+        <ProjectDetail
+          projectId={projectId}
+          onOpenVersion={(versionNumber) =>
+            void navigate({
+              to: '/p/$projectId/v/$versionNumber',
+              params: { projectId, versionNumber: String(versionNumber) },
+            })
+          }
+        />
+      </main>
+    </>
   );
 }

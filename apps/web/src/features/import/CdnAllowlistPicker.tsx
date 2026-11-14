@@ -53,9 +53,9 @@ export function CdnAllowlistPicker({
   };
 
   return (
-    <fieldset className="space-y-2 rounded border border-slate-200 p-4">
-      <legend className="px-1 text-sm font-medium text-slate-800">允許的 CDN</legend>
-      <p className="text-xs text-slate-500">勾選後，原型可載入這些來源的外部資源。</p>
+    <fieldset className="card space-y-2 p-4">
+      <legend className="px-1 text-sm font-medium text-ink">允許的 CDN</legend>
+      <p className="text-xs text-ink-3">勾選後，原型可載入這些來源的外部資源。</p>
       {CDN_PRESETS.map((p) => (
         <label key={p.id} className="flex items-start gap-2 text-sm">
           <input
@@ -66,12 +66,12 @@ export function CdnAllowlistPicker({
           />
           <span>
             {p.label}
-            <span className="block text-xs text-slate-500">{p.origins.join('、')}</span>
+            <span className="block font-mono text-xs text-ink-3">{p.origins.join('、')}</span>
           </span>
         </label>
       ))}
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger">
           {error}
         </p>
       )}

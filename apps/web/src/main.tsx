@@ -6,6 +6,8 @@ import { disableZodJit } from '@hpe/shared';
 import { installTrustedTypesPolicy } from '@/lib/sanitize';
 import { queryClient } from '@/lib/queryClient';
 import { router } from '@/router';
+import '@fontsource/ibm-plex-mono/400.css';
+import '@fontsource/ibm-plex-mono/500.css';
 import './styles.css';
 
 // Trusted Types 的 default policy 必須在任何 render 之前安裝。

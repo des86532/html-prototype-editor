@@ -95,21 +95,21 @@ function ShareBody({ projectId, api = defaultApi }: Pick<ShareDialogProps, 'proj
         <form onSubmit={submit} className="space-y-3">
           <div className="flex flex-wrap gap-4">
             <div>
-              <label htmlFor={roleId} className="mb-1 block text-sm font-medium text-slate-700">
+              <label htmlFor={roleId} className="field-label">
                 角色
               </label>
               <select
                 id={roleId}
                 value={role}
                 onChange={(e) => setRole(e.target.value as 'commenter' | 'viewer')}
-                className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+                className="input w-auto"
               >
                 <option value="commenter">{ROLE_LABEL.commenter}</option>
                 <option value="viewer">{ROLE_LABEL.viewer}</option>
               </select>
             </div>
             <div>
-              <label htmlFor={expiryId} className="mb-1 block text-sm font-medium text-slate-700">
+              <label htmlFor={expiryId} className="field-label">
                 到期時間（選填）
               </label>
               <input
@@ -117,28 +117,24 @@ function ShareBody({ projectId, api = defaultApi }: Pick<ShareDialogProps, 'proj
                 type="datetime-local"
                 value={expiry}
                 onChange={(e) => setExpiry(e.target.value)}
-                className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+                className="input w-auto"
               />
             </div>
           </div>
-          <button
-            type="submit"
-            disabled={create.isPending}
-            className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
+          <button type="submit" disabled={create.isPending} className="btn btn-primary">
             建立分享連結
           </button>
         </form>
 
         {error && (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-danger">
             {error}
           </p>
         )}
 
         {createdUrl && (
-          <div className="space-y-2 rounded border border-amber-300 bg-amber-50 p-3">
-            <label htmlFor={urlId} className="block text-sm font-medium text-slate-800">
+          <div className="space-y-2 rounded-md border border-warn/30 bg-warn-soft p-3">
+            <label htmlFor={urlId} className="field-label">
               分享連結
             </label>
             <div className="flex gap-2">
@@ -148,52 +144,46 @@ function ShareBody({ projectId, api = defaultApi }: Pick<ShareDialogProps, 'proj
                 readOnly
                 value={createdUrl}
                 onFocus={(e) => e.currentTarget.select()}
-                className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1.5 font-mono text-xs"
+                className="input min-w-0 flex-1 font-mono text-xs"
               />
-              <button
-                type="button"
-                onClick={() => void copy()}
-                className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm"
-              >
+              <button type="button" onClick={() => void copy()} className="btn btn-secondary">
                 {copied ? '已複製' : '複製'}
               </button>
             </div>
-            <p className="text-xs text-amber-800">
+            <p className="text-xs text-warn">
               這個連結只會顯示一次，關閉後將無法再次查看，請立即複製。
             </p>
           </div>
         )}
 
         <section>
-          <h3 className="mb-2 text-sm font-semibold text-slate-800">現有連結</h3>
+          <h3 className="mb-2 text-sm font-semibold text-ink">現有連結</h3>
           {links.isPending ? (
-            <p className="text-sm text-slate-500">載入中…</p>
+            <p className="text-sm text-ink-3">載入中…</p>
           ) : links.isError ? (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-danger">
               {messageForError(links.error)}
             </p>
           ) : links.data.length === 0 ? (
-            <p className="text-sm text-slate-500">尚未建立任何分享連結。</p>
+            <p className="text-sm text-ink-3">尚未建立任何分享連結。</p>
           ) : (
-            <ul className="divide-y divide-slate-200 text-sm">
+            <ul className="divide-y divide-line text-sm">
               {links.data.map((l) => {
                 const status = linkStatus(l);
                 return (
                   <li key={l.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2">
                     <span className="font-medium">{ROLE_LABEL[l.role]}</span>
-                    <span className="text-slate-600">建立：{fmt(l.createdAt)}</span>
-                    <span className="text-slate-600">
+                    <span className="text-ink-2">建立：{fmt(l.createdAt)}</span>
+                    <span className="text-ink-2">
                       到期：{l.expiresAt ? fmt(l.expiresAt) : '永不'}
                     </span>
-                    <span className={status === '有效' ? 'text-green-700' : 'text-slate-500'}>
-                      {status}
-                    </span>
+                    <span className={status === '有效' ? 'text-ok' : 'text-ink-3'}>{status}</span>
                     {status === '有效' && (
                       <button
                         type="button"
                         disabled={revoke.isPending}
                         onClick={() => revoke.mutate(l.id)}
-                        className="ml-auto rounded border border-red-300 px-2 py-1 text-xs text-red-700"
+                        className="btn btn-danger btn-sm ml-auto"
                       >
                         撤銷
                       </button>

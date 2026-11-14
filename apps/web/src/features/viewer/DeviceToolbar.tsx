@@ -3,6 +3,8 @@ import { DEVICE_PRESETS, type Mode, type PageInfo } from '@hpe/shared';
 import type { DeviceState } from '@/state/uiStore';
 
 export interface DeviceToolbarProps {
+  /** 給收合按鈕的 aria-controls */
+  id: string;
   device: DeviceState;
   onDevice: (d: DeviceState) => void;
   fit: boolean;
@@ -30,12 +32,9 @@ export interface DeviceToolbarProps {
 const MIN_SIZE = 200;
 const MAX_SIZE = 4000;
 
-const btn = (active: boolean) =>
-  `rounded-md border px-2 py-1 text-xs ${
-    active
-      ? 'border-blue-600 bg-blue-600 text-white'
-      : 'border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50'
-  } disabled:cursor-not-allowed disabled:opacity-50`;
+const toggle = 'btn btn-secondary btn-sm btn-toggle';
+
+const Sep = () => <span aria-hidden="true" className="h-5 w-px bg-line" />;
 
 function CustomSize({ device, onDevice }: Pick<DeviceToolbarProps, 'device' | 'onDevice'>) {
   const [w, setW] = useState(String(device.width));
@@ -78,13 +77,13 @@ function CustomSize({ device, onDevice }: Pick<DeviceToolbarProps, 'device' | 'o
         set(e.target.value);
         apply(first ? e.target.value : other(), first ? other() : e.target.value);
       }}
-      className="w-16 rounded-md border border-neutral-300 px-1.5 py-1 text-xs"
+      className="input input-sm w-16 px-1.5 font-mono"
     />
   );
   return (
     <div className="flex items-center gap-1" role="group" aria-label="自訂尺寸">
       {field('自訂寬度', w, setW, () => h, true)}
-      <span aria-hidden="true" className="text-xs text-neutral-500">
+      <span aria-hidden="true" className="text-xs text-ink-3">
         ×
       </span>
       {field('自訂高度', h, setH, () => w, false)}
@@ -95,41 +94,48 @@ function CustomSize({ device, onDevice }: Pick<DeviceToolbarProps, 'device' | 'o
 export function DeviceToolbar(p: DeviceToolbarProps) {
   return (
     <div
+      id={p.id}
       role="toolbar"
       aria-label="Viewer 工具列"
-      className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-neutral-200 bg-white px-3 py-2"
+      className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-surface px-3 py-2"
     >
-      <div role="group" aria-label="裝置尺寸" className="flex items-center gap-1">
-        {DEVICE_PRESETS.map((d) => (
-          <button
-            key={d.id}
-            type="button"
-            aria-pressed={p.device.presetId === d.id}
-            className={btn(p.device.presetId === d.id)}
-            onClick={() => p.onDevice({ presetId: d.id, width: d.width, height: d.height })}
-          >
-            {d.label}
-          </button>
-        ))}
+      <div className="flex items-center gap-2">
+        <div role="group" aria-label="裝置尺寸" className="seg">
+          {DEVICE_PRESETS.map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              aria-pressed={p.device.presetId === d.id}
+              onClick={() => p.onDevice({ presetId: d.id, width: d.width, height: d.height })}
+            >
+              {d.label}
+            </button>
+          ))}
+        </div>
         <CustomSize device={p.device} onDevice={p.onDevice} />
         <button
           type="button"
           aria-pressed={p.fit}
-          className={btn(p.fit)}
+          className={toggle}
           onClick={() => p.onFit(!p.fit)}
           title="縮放到符合畫面"
         >
-          符合畫面{p.fit ? `（${Math.round(p.scale * 100)}%）` : ''}
+          <span>
+            符合畫面
+            {p.fit ? <span className="font-mono">（{Math.round(p.scale * 100)}%）</span> : ''}
+          </span>
         </button>
       </div>
 
-      <label className="flex items-center gap-1 text-xs text-neutral-700">
+      <Sep />
+
+      <label className="flex items-center gap-1.5 text-xs text-ink-2">
         頁面
         <select
           aria-label="頁面"
           value={p.pageId ?? ''}
           onChange={(e) => p.onPage(e.target.value)}
-          className="max-w-48 rounded-md border border-neutral-300 bg-white px-1.5 py-1 text-xs"
+          className="input input-sm w-auto max-w-44"
         >
           {p.pageId !== null && !p.pages.some((pg) => pg.path === p.pageId) && (
             <option value={p.pageId}>{p.pageId}</option>
@@ -142,11 +148,12 @@ export function DeviceToolbar(p: DeviceToolbarProps) {
         </select>
       </label>
 
-      <div role="group" aria-label="模式" className="flex items-center gap-1">
+      <Sep />
+
+      <div role="group" aria-label="模式" className="seg">
         <button
           type="button"
           aria-pressed={p.mode === 'interact'}
-          className={btn(p.mode === 'interact')}
           onClick={() => p.onMode('interact')}
         >
           Interact
@@ -156,19 +163,21 @@ export function DeviceToolbar(p: DeviceToolbarProps) {
           aria-pressed={p.mode === 'comment'}
           disabled={!p.canComment}
           title={p.canComment ? '留言模式（C）' : '你沒有留言權限'}
-          className={btn(p.mode === 'comment')}
+          data-accent=""
           onClick={() => p.onMode('comment')}
         >
           Comment（C）
         </button>
       </div>
 
-      <div role="group" aria-label="顯示" className="flex items-center gap-1">
+      <Sep />
+
+      <div role="group" aria-label="顯示" className="flex items-center gap-1.5">
         <button
           type="button"
           aria-pressed={p.showComments}
           title="顯示留言（Shift+C）"
-          className={btn(p.showComments)}
+          className={toggle}
           onClick={() => p.onShowComments(!p.showComments)}
         >
           顯示留言
@@ -176,7 +185,7 @@ export function DeviceToolbar(p: DeviceToolbarProps) {
         <button
           type="button"
           aria-pressed={p.showResolved}
-          className={btn(p.showResolved)}
+          className={toggle}
           onClick={() => p.onShowResolved(!p.showResolved)}
         >
           顯示已解決
@@ -185,15 +194,17 @@ export function DeviceToolbar(p: DeviceToolbarProps) {
           type="button"
           aria-pressed={p.panelOpen}
           aria-expanded={p.panelOpen}
-          className={btn(p.panelOpen)}
+          className={toggle}
           onClick={() => p.onPanelOpen(!p.panelOpen)}
         >
-          留言面板（{p.threadCount}）
+          <span>
+            留言面板（<span className="font-mono">{p.threadCount}</span>）
+          </span>
         </button>
       </div>
 
       {p.onExport && (
-        <button type="button" className={`${btn(false)} ml-auto`} onClick={p.onExport}>
+        <button type="button" className="btn btn-secondary btn-sm ml-auto" onClick={p.onExport}>
           匯出
         </button>
       )}

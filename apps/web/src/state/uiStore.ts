@@ -30,6 +30,16 @@ export const DEFAULT_DEVICE: DeviceState = {
   height: DEVICE_PRESETS[0].height,
 };
 
+const TOOLBAR_COLLAPSED_KEY = 'hpe.viewer.toolbarCollapsed';
+
+function readToolbarCollapsed(): boolean {
+  try {
+    return localStorage.getItem(TOOLBAR_COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export interface UiState {
   mode: Mode;
   showComments: boolean;
@@ -41,6 +51,8 @@ export interface UiState {
   device: DeviceState;
   /** 縮放到符合畫面 */
   fit: boolean;
+  /** viewer 工具列收合；偏好存在 localStorage，跨 viewer 保留 */
+  toolbarCollapsed: boolean;
   /** agent 回報的目前頁面（bundle 路徑） */
   pageId: string | null;
 
@@ -58,6 +70,7 @@ export interface UiState {
   setFilters(patch: Partial<ThreadFilters>): void;
   setDevice(device: DeviceState): void;
   setFit(v: boolean): void;
+  setToolbarCollapsed(v: boolean): void;
   setPageId(id: string | null): void;
   reset(): void;
 }
@@ -77,6 +90,7 @@ const initial = {
 
 export const useUiStore = create<UiState>()((set) => ({
   ...initial,
+  toolbarCollapsed: readToolbarCollapsed(),
   setMode: (mode) => set(mode === 'interact' ? { mode, draft: null } : { mode }),
   toggleMode: () =>
     set((s) => (s.mode === 'comment' ? { mode: 'interact', draft: null } : { mode: 'comment' })),
@@ -96,6 +110,14 @@ export const useUiStore = create<UiState>()((set) => ({
   setFilters: (patch) => set((s) => ({ filters: { ...s.filters, ...patch } })),
   setDevice: (device) => set({ device }),
   setFit: (fit) => set({ fit }),
+  setToolbarCollapsed: (toolbarCollapsed) => {
+    try {
+      localStorage.setItem(TOOLBAR_COLLAPSED_KEY, toolbarCollapsed ? '1' : '0');
+    } catch {
+      /* 儲存失敗只影響下次載入，不影響這次狀態 */
+    }
+    set({ toolbarCollapsed });
+  },
   setPageId: (pageId) => set({ pageId }),
-  reset: () => set({ ...initial }),
+  reset: () => set((s) => ({ ...initial, toolbarCollapsed: s.toolbarCollapsed })),
 }));

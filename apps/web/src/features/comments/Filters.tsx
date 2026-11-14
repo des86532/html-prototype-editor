@@ -17,14 +17,14 @@ export interface FiltersProps {
   currentWidth: number;
 }
 
-const selectCls = 'w-full rounded border border-neutral-300 bg-white px-1.5 py-1 text-xs';
+const selectCls = 'input input-sm';
 
 /** 狀態、頁面、寬度、作者、標籤。留言面板與畫面 pin 共用同一份 `ThreadFilters`。 */
 export function Filters({ filters, onChange, pages, authors, currentWidth }: FiltersProps) {
   const id = useId();
   const field = (key: string, label: string, control: React.ReactNode) => (
     <div className="flex flex-col gap-0.5">
-      <label htmlFor={`${id}-${key}`} className="text-[11px] text-neutral-500">
+      <label htmlFor={`${id}-${key}`} className="text-[11px] text-ink-3">
         {label}
       </label>
       {control}

@@ -4,31 +4,26 @@ import type { SecurityReport } from '@hpe/shared';
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="space-y-1">
-      <h4 className="text-sm font-medium text-slate-800">{title}</h4>
+      <h4 className="text-sm font-medium text-ink">{title}</h4>
       {children}
     </section>
   );
 }
 
 function Empty() {
-  return <p className="text-sm text-slate-500">無風險項目</p>;
+  return <p className="text-sm text-ink-3">無風險項目</p>;
 }
 
 function Badge({ tone, children }: { tone: 'red' | 'green' | 'amber'; children: ReactNode }) {
-  const cls =
-    tone === 'red'
-      ? 'bg-red-100 text-red-800'
-      : tone === 'green'
-        ? 'bg-green-100 text-green-800'
-        : 'bg-amber-100 text-amber-800';
-  return <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${cls}`}>{children}</span>;
+  const cls = tone === 'red' ? 'chip-danger' : tone === 'green' ? 'chip-ok' : 'chip-warn';
+  return <span className={`chip shrink-0 ${cls}`}>{children}</span>;
 }
 
 function UrlList({ urls }: { urls: string[] }) {
   return (
     <ul className="space-y-0.5">
       {urls.map((u, i) => (
-        <li key={`${i}-${u}`} className="truncate font-mono text-xs text-slate-700">
+        <li key={`${i}-${u}`} className="truncate font-mono text-xs text-ink-2">
           {u}
         </li>
       ))}
@@ -44,11 +39,9 @@ export function SecurityReportPanel({ report }: { report: SecurityReport }) {
   ];
   const activeFlags = flags.filter(([, on]) => on);
   return (
-    <div className="space-y-3 rounded border border-slate-200 p-4" aria-label="安全性報告">
-      <h3 className="text-base font-semibold text-slate-900">安全性報告</h3>
-      <p className="text-xs text-slate-500">
-        此報告僅供參考，並非安全邊界；原型一律在隔離沙箱中執行。
-      </p>
+    <div className="card space-y-3 p-4" aria-label="安全性報告">
+      <h3 className="text-base font-semibold text-ink">安全性報告</h3>
+      <p className="text-xs text-ink-3">此報告僅供參考，並非安全邊界；原型一律在隔離沙箱中執行。</p>
 
       <Section title="腳本">
         {report.scripts.inline === 0 && report.scripts.external.length === 0 ? (
@@ -69,7 +62,7 @@ export function SecurityReportPanel({ report }: { report: SecurityReport }) {
             {report.externalResources.map((r, i) => (
               <li key={`${i}-${r.url}`} className="flex items-center gap-2">
                 <Badge tone="amber">{r.kind}</Badge>
-                <span className="min-w-0 flex-1 truncate font-mono text-xs text-slate-700">
+                <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink-2">
                   {r.url}
                 </span>
                 {r.blocked ? <Badge tone="red">已封鎖</Badge> : <Badge tone="green">已允許</Badge>}
@@ -87,7 +80,7 @@ export function SecurityReportPanel({ report }: { report: SecurityReport }) {
         {report.passwordInputs === 0 ? (
           <Empty />
         ) : (
-          <p role="alert" className="text-sm text-amber-700">
+          <p role="alert" className="text-sm text-warn">
             警告：包含 {report.passwordInputs} 個密碼欄位，請勿輸入真實密碼。
           </p>
         )}
@@ -113,7 +106,7 @@ export function SecurityReportPanel({ report }: { report: SecurityReport }) {
         {report.warnings.length === 0 ? (
           <Empty />
         ) : (
-          <ul className="list-disc pl-5 text-sm text-amber-800">
+          <ul className="list-disc pl-5 text-sm text-warn">
             {report.warnings.map((w, i) => (
               <li key={`${i}-${w}`}>{w}</li>
             ))}

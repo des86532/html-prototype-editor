@@ -56,10 +56,10 @@ export function Pin({ item, open, onClick, onPointerEnter, onPointerLeave, butto
         onPointerEnter={onPointerEnter}
         onPointerLeave={onPointerLeave}
         className={[
-          'pointer-events-auto relative flex size-7 items-center justify-center rounded-full border-2 border-white text-[11px] font-semibold leading-none text-white shadow-md outline-offset-2 focus-visible:outline-2 focus-visible:outline-blue-600',
-          item.anchorStatus === 'fuzzy' ? 'outline-2 outline-dashed outline-neutral-800' : '',
+          'pointer-events-auto relative flex size-7 items-center justify-center rounded-full border-2 border-white text-[11px] font-semibold leading-none text-white shadow-md outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent',
+          item.anchorStatus === 'fuzzy' ? 'outline-2 outline-dashed outline-ink' : '',
           item.draft ? 'opacity-50' : item.resolved ? 'opacity-60' : '',
-          open ? 'ring-2 ring-blue-500' : '',
+          open ? 'ring-2 ring-accent' : '',
         ].join(' ')}
         style={{ backgroundColor: color }}
       >
@@ -72,7 +72,7 @@ export function Pin({ item, open, onClick, onPointerEnter, onPointerLeave, butto
         {!item.draft && (
           <span
             aria-hidden="true"
-            className="absolute -right-3 -top-2 rounded bg-white px-0.5 text-[9px] font-bold text-neutral-900 shadow"
+            className="absolute -right-3 -top-2 rounded bg-white px-0.5 text-[9px] font-bold text-ink shadow"
           >
             #{item.number}
           </span>
@@ -81,7 +81,7 @@ export function Pin({ item, open, onClick, onPointerEnter, onPointerLeave, butto
           <span
             aria-hidden="true"
             title="位置可能不準確"
-            className="absolute -bottom-2 -left-2 rounded-full bg-amber-400 px-0.5 text-[9px] text-neutral-900"
+            className="absolute -bottom-2 -left-2 rounded-full bg-warn-soft px-0.5 text-[9px] text-ink"
           >
             ⚠
           </span>

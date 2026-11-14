@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { makeAnchor } from '@/test-utils/fixtures';
 import { useUiStore } from './uiStore';
 
@@ -50,5 +50,18 @@ describe('uiStore', () => {
     s().setFilters({ tag: 'bug' });
     s().setFilters({ status: 'open' });
     expect(s().filters).toMatchObject({ tag: 'bug', status: 'open', pageId: null });
+  });
+});
+
+describe('toolbarCollapsed', () => {
+  afterEach(() => s().setToolbarCollapsed(false));
+
+  it('persists to localStorage and survives reset()', () => {
+    s().setToolbarCollapsed(true);
+    expect(localStorage.getItem('hpe.viewer.toolbarCollapsed')).toBe('1');
+    s().reset();
+    expect(s().toolbarCollapsed).toBe(true);
+    s().setToolbarCollapsed(false);
+    expect(localStorage.getItem('hpe.viewer.toolbarCollapsed')).toBe('0');
   });
 });

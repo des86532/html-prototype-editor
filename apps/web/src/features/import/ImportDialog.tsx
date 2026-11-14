@@ -161,7 +161,7 @@ function ImportBody({
     <>
       {done ? (
         <div className="space-y-4">
-          <p role="status" className="text-sm text-green-700">
+          <p role="status" className="text-sm text-ok">
             已匯入 v{done.number}。
           </p>
           <SecurityReportPanel report={done.analysis} />
@@ -172,18 +172,14 @@ function ImportBody({
             onChange={(next) => setDone({ ...done, cdnAllowlist: next })}
           />
           <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => onImported(done)}
-              className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white"
-            >
+            <button type="button" onClick={() => onImported(done)} className="btn btn-primary">
               完成
             </button>
           </div>
         </div>
       ) : chooserCandidates ? (
         <fieldset className="space-y-3">
-          <legend className="text-sm font-medium text-slate-800">請選擇入口頁面</legend>
+          <legend className="field-label">請選擇入口頁面</legend>
           {chooserCandidates.map((c) => (
             <label key={c} className="flex items-center gap-2 text-sm">
               <input
@@ -197,7 +193,7 @@ function ImportBody({
             </label>
           ))}
           {error && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-danger">
               {error}
             </p>
           )}
@@ -206,7 +202,7 @@ function ImportBody({
               type="button"
               disabled={busy || !entry}
               onClick={confirmEntry}
-              className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              className="btn btn-primary"
             >
               {busy ? '處理中…' : '確認入口'}
             </button>
@@ -214,11 +210,7 @@ function ImportBody({
         </fieldset>
       ) : (
         <div className="space-y-4">
-          <div
-            role="tablist"
-            aria-label="匯入方式"
-            className="flex gap-2 border-b border-slate-200"
-          >
+          <div role="tablist" aria-label="匯入方式" className="flex gap-2 border-b border-line">
             {(
               [
                 ['file', '上傳檔案'],
@@ -234,7 +226,7 @@ function ImportBody({
                   setTab(id);
                   setError(null);
                 }}
-                className={`px-3 py-2 text-sm ${tab === id ? 'border-b-2 border-indigo-600 font-medium text-indigo-700' : 'text-slate-600'}`}
+                className={`px-3 py-2 text-sm ${tab === id ? 'border-b-2 border-accent font-medium text-accent' : 'text-ink-2'}`}
               >
                 {label}
               </button>
@@ -250,13 +242,13 @@ function ImportBody({
               }}
               onDragLeave={() => setDragging(false)}
               onDrop={onDrop}
-              className={`flex flex-col items-center gap-2 rounded border-2 border-dashed p-8 text-center ${dragging ? 'border-indigo-500 bg-indigo-50' : 'border-slate-300'}`}
+              className={`flex flex-col items-center gap-2 rounded-lg border-2 border-dashed p-8 text-center ${dragging || file ? 'border-accent bg-accent-soft text-accent' : 'border-line-strong bg-paper'}`}
             >
-              <p className="text-sm text-slate-600">拖放 .html / .htm / .zip 到這裡，或</p>
+              <p className="text-sm text-ink-2">拖放 .html / .htm / .zip 到這裡，或</p>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="rounded border border-slate-300 px-3 py-1.5 text-sm"
+                className="btn btn-secondary"
               >
                 選擇檔案
               </button>
@@ -271,11 +263,11 @@ function ImportBody({
                   e.target.value = '';
                 }}
               />
-              {file && <p className="text-sm text-slate-800">已選擇：{file.name}</p>}
+              {file && <p className="text-sm text-ink">已選擇：{file.name}</p>}
             </div>
           ) : (
             <div role="tabpanel" className="space-y-1">
-              <label htmlFor={pasteId} className="block text-sm font-medium text-slate-700">
+              <label htmlFor={pasteId} className="field-label">
                 HTML 原始碼
               </label>
               <textarea
@@ -283,36 +275,27 @@ function ImportBody({
                 value={source}
                 onChange={(e) => setSource(e.target.value)}
                 rows={12}
-                className="w-full rounded border border-slate-300 p-2 font-mono text-xs"
+                className="input h-auto py-2 font-mono text-xs"
               />
             </div>
           )}
 
           {busy && (
             <div role="status" aria-live="polite" className="space-y-1">
-              <p className="text-sm text-slate-600">上傳並分析中…</p>
-              <div className="h-1.5 w-full animate-pulse rounded bg-indigo-300" />
+              <p className="text-sm text-ink-2">上傳並分析中…</p>
+              <div className="h-1.5 w-full animate-pulse rounded bg-accent" />
             </div>
           )}
           {error && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-danger">
               {error}
             </p>
           )}
           <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded px-4 py-2 text-sm text-slate-600"
-            >
+            <button type="button" onClick={onClose} className="btn btn-ghost">
               取消
             </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={submit}
-              className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            >
+            <button type="button" disabled={busy} onClick={submit} className="btn btn-primary">
               匯入
             </button>
           </div>

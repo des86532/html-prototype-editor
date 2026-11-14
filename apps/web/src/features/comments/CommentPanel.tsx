@@ -73,38 +73,30 @@ function Row({
         aria-current={open ? 'true' : undefined}
         aria-expanded={isPanelOnly(anchorStatus) ? expanded : undefined}
         onClick={onActivate}
-        className={`flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-neutral-100 ${
-          open ? 'bg-blue-50' : ''
+        className={`flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-paper ${
+          open ? 'bg-accent-soft' : ''
         }`}
       >
-        <span className="flex items-center gap-2 text-xs text-neutral-500">
-          <span className="font-semibold text-neutral-800">#{t.number}</span>
+        <span className="flex items-center gap-2 text-xs text-ink-3">
+          <span className="font-mono font-semibold text-ink">#{t.number}</span>
           <span className="truncate">{t.createdBy.name}</span>
           <span>{formatRelativeTime(t.createdAt)}</span>
-          {t.status === 'resolved' && (
-            <span className="rounded bg-green-100 px-1 text-green-700">已解決</span>
-          )}
-          {anchorStatus === 'hidden' && (
-            <span className="rounded bg-neutral-200 px-1">目前狀態不可見</span>
-          )}
-          {anchorStatus === 'fuzzy' && (
-            <span className="rounded bg-amber-100 px-1">位置可能有變</span>
-          )}
-          {anchorStatus === 'fallback' && (
-            <span className="rounded bg-neutral-200 px-1">位置不準確</span>
-          )}
+          {t.status === 'resolved' && <span className="chip chip-ok">已解決</span>}
+          {anchorStatus === 'hidden' && <span className="chip chip-muted">目前狀態不可見</span>}
+          {anchorStatus === 'fuzzy' && <span className="chip chip-warn">位置可能有變</span>}
+          {anchorStatus === 'fallback' && <span className="chip chip-muted">位置不準確</span>}
         </span>
         <span className="line-clamp-2 whitespace-pre-wrap break-words text-sm">
           {first ? truncate(firstLines(first.body, 2), 160) : ''}
         </span>
-        <span className="text-[11px] text-neutral-500">
+        <span className="text-[11px] text-ink-3">
           {t.anchor.pageId}・{Math.round(t.anchor.viewport.width)}px
           {t.comments.length > 1 ? `・${t.comments.length - 1} 則回覆` : ''}
         </span>
       </button>
       {expanded && (
-        <div className="mt-1 rounded-md border border-neutral-200 p-2">
-          {hint && <p className="mb-2 text-xs text-neutral-600">{hint}</p>}
+        <div className="mt-1 rounded-md border border-line p-2">
+          {hint && <p className="mb-2 text-xs text-ink-2">{hint}</p>}
           <ThreadContent thread={t} actor={actor} actions={actions} />
         </div>
       )}
@@ -159,7 +151,7 @@ export function CommentPanel({
   const renderGroup = (title: string, list: PanelThread[], testId: string) =>
     list.length === 0 ? null : (
       <section aria-label={title} data-testid={testId} className="mt-3">
-        <h3 className="px-2 text-xs font-semibold text-neutral-500">
+        <h3 className="px-2 text-[11px] font-semibold tracking-wide text-ink-3 uppercase">
           {title}（{list.length}）
         </h3>
         <ul>
@@ -198,20 +190,22 @@ export function CommentPanel({
     <aside
       aria-label="留言面板"
       data-testid="comment-panel"
-      className="flex h-full w-80 shrink-0 flex-col border-l border-neutral-200 bg-white"
+      className="flex h-full w-80 shrink-0 flex-col border-l border-line bg-surface"
     >
-      <header className="flex items-center justify-between border-b border-neutral-200 px-3 py-2">
-        <h2 className="text-sm font-semibold">留言（{total}）</h2>
+      <header className="flex items-center justify-between border-b border-line px-3 py-2">
+        <h2 className="text-sm font-semibold text-ink">
+          留言（<span className="font-mono">{total}</span>）
+        </h2>
         <button
           type="button"
           aria-label="收合留言面板"
           onClick={onClose}
-          className="rounded px-1.5 text-neutral-500 hover:bg-neutral-100"
+          className="btn btn-ghost btn-sm"
         >
           ✕
         </button>
       </header>
-      <div className="border-b border-neutral-200 p-3">
+      <div className="border-b border-line p-3">
         <Filters
           filters={filters}
           onChange={onFiltersChange}
@@ -221,7 +215,7 @@ export function CommentPanel({
         />
       </div>
       <div ref={listRef} onKeyDown={onKeyDown} className="min-h-0 flex-1 overflow-y-auto p-2">
-        {total === 0 && <p className="px-2 py-4 text-sm text-neutral-500">沒有符合條件的留言。</p>}
+        {total === 0 && <p className="px-2 py-4 text-sm text-ink-3">沒有符合條件的留言。</p>}
         {renderGroup('所有討論串', normal, 'panel-group-normal')}
         {renderGroup('目前狀態不可見', hidden, 'panel-group-hidden')}
         {renderGroup('孤兒評論', orphaned, 'panel-group-orphaned')}

@@ -80,7 +80,7 @@ function CommentMenu({
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         onClick={() => setOpen((v) => !v)}
-        className="rounded px-1 text-neutral-500 hover:bg-neutral-100"
+        className="btn btn-ghost btn-sm h-auto px-1"
       >
         …
       </button>
@@ -89,7 +89,7 @@ function CommentMenu({
           id={menuId}
           role="menu"
           aria-label="留言選項"
-          className="absolute right-0 z-10 mt-1 w-36 rounded-md border border-neutral-200 bg-white py-1 text-sm shadow-lg"
+          className="card absolute right-0 z-10 mt-1 w-36 py-1 text-sm shadow-lg"
           onKeyDown={(e) => {
             const list = items();
             const i = list.indexOf(document.activeElement as HTMLElement);
@@ -108,11 +108,11 @@ function CommentMenu({
         >
           {confirming ? (
             <>
-              <p className="px-3 py-1 text-xs text-neutral-600">確定要刪除這則留言？</p>
+              <p className="px-3 py-1 text-xs text-ink-2">確定要刪除這則留言？</p>
               <button
                 type="button"
                 role="menuitem"
-                className="block w-full px-3 py-1 text-left text-red-600 hover:bg-neutral-100"
+                className="block w-full px-3 py-1 text-left text-danger hover:bg-paper"
                 onClick={() => void run(() => actions.onDeleteComment(thread, comment.id))}
               >
                 確定刪除
@@ -120,7 +120,7 @@ function CommentMenu({
               <button
                 type="button"
                 role="menuitem"
-                className="block w-full px-3 py-1 text-left hover:bg-neutral-100"
+                className="block w-full px-3 py-1 text-left hover:bg-paper"
                 onClick={() => setConfirming(false)}
               >
                 取消
@@ -132,7 +132,7 @@ function CommentMenu({
                 <button
                   type="button"
                   role="menuitem"
-                  className="block w-full px-3 py-1 text-left hover:bg-neutral-100"
+                  className="block w-full px-3 py-1 text-left hover:bg-paper"
                   onClick={() => {
                     close(false);
                     onEdit();
@@ -145,7 +145,7 @@ function CommentMenu({
                 <button
                   type="button"
                   role="menuitem"
-                  className="block w-full px-3 py-1 text-left text-red-600 hover:bg-neutral-100"
+                  className="block w-full px-3 py-1 text-left text-danger hover:bg-paper"
                   onClick={() => setConfirming(true)}
                 >
                   刪除
@@ -154,7 +154,7 @@ function CommentMenu({
               <button
                 type="button"
                 role="menuitem"
-                className="block w-full px-3 py-1 text-left hover:bg-neutral-100"
+                className="block w-full px-3 py-1 text-left hover:bg-paper"
                 onClick={() => void run(() => actions.onCopyLink(thread))}
               >
                 複製連結
@@ -162,7 +162,7 @@ function CommentMenu({
             </>
           )}
           {error && (
-            <p role="alert" className="px-3 py-1 text-xs text-red-600">
+            <p role="alert" className="px-3 py-1 text-xs text-danger">
               {error}
             </p>
           )}
@@ -188,8 +188,8 @@ function CommentRow({
     <li className="py-2" data-comment-id={comment.id}>
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0 text-sm">
-          <span className="font-medium">{comment.author.name}</span>
-          <span className="ml-2 text-xs text-neutral-500">
+          <span className="font-semibold text-ink">{comment.author.name}</span>
+          <span className="ml-2 text-xs text-ink-3">
             {formatRelativeTime(comment.createdAt)}
             {comment.editedAt ? '（已編輯）' : ''}
           </span>
@@ -219,7 +219,7 @@ function CommentRow({
           />
         </div>
       ) : (
-        <SafeMarkdown source={comment.body} className="mt-0.5 text-neutral-800" />
+        <SafeMarkdown source={comment.body} className="mt-0.5 text-ink" />
       )}
     </li>
   );
@@ -252,7 +252,7 @@ export function ThreadContent({ thread, actor, actions, autoFocusReply }: Thread
 
   return (
     <div className="flex flex-col gap-2 text-sm">
-      <ul className="divide-y divide-neutral-100" aria-label="討論串">
+      <ul className="divide-y divide-line" aria-label="討論串">
         {thread.comments.map((c) => (
           <CommentRow key={c.id} comment={c} thread={thread} actor={actor} actions={actions} />
         ))}
@@ -267,18 +267,18 @@ export function ThreadContent({ thread, actor, actions, autoFocusReply }: Thread
           onSubmit={(body) => actions.onReply(thread, body)}
         />
       ) : (
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-ink-3">
           {actor.role === 'viewer' ? '這個連結只能檢視，無法留言。' : '請先填寫名字才能留言。'}
         </p>
       )}
-      <div className="flex flex-wrap items-center gap-1.5 border-t border-neutral-100 pt-2">
+      <div className="flex flex-wrap items-center gap-1.5 border-t border-line pt-2">
         <button
           type="button"
           disabled={!writable}
           onClick={() =>
             void guard(() => actions.onSetStatus(thread, resolved ? 'open' : 'resolved'))
           }
-          className="rounded-md border border-neutral-300 px-2 py-0.5 text-xs hover:bg-neutral-50 disabled:opacity-50"
+          className="btn btn-secondary btn-sm"
         >
           {resolved ? '重新開啟' : 'Resolve'}
         </button>
@@ -295,8 +295,8 @@ export function ThreadContent({ thread, actor, actions, autoFocusReply }: Thread
                 onClick={() => toggleTag(tag)}
                 className={`rounded-full border px-2 py-0.5 text-xs ${
                   on
-                    ? 'border-blue-600 bg-blue-50 text-blue-700'
-                    : 'border-neutral-300 text-neutral-600 hover:bg-neutral-50'
+                    ? 'border-accent bg-accent-soft text-accent'
+                    : 'border-line text-ink-2 hover:bg-paper'
                 }`}
               >
                 {TAG_LABELS[tag]}
@@ -306,7 +306,7 @@ export function ThreadContent({ thread, actor, actions, autoFocusReply }: Thread
         </div>
       </div>
       {error && (
-        <p role="alert" className="text-xs text-red-600">
+        <p role="alert" className="text-xs text-danger">
           {error}
         </p>
       )}
