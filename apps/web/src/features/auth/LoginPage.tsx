@@ -1,6 +1,7 @@
 import { useId, useState, type FormEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { api as defaultApi, type Api } from '@/lib/api';
+import { apiBaseUrl } from '@/lib/apiClient';
 import { messageForError } from '@/lib/errorMessages';
 
 export function LoginPage({ api = defaultApi }: { api?: Api }) {
@@ -63,6 +64,11 @@ export function LoginPage({ api = defaultApi }: { api?: Api }) {
           )}
         </div>
       )}
+      <footer className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
+        <p className="font-medium text-slate-700">API 伺服器端點：</p>
+        <p className="mt-1 break-all font-mono text-slate-600">{apiBaseUrl()}</p>
+        <p className="mt-1 text-slate-400">若伺服器未啟動或無法連線，登入將回傳網路連線錯誤。</p>
+      </footer>
     </main>
   );
 }
