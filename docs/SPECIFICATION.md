@@ -146,7 +146,7 @@ require-trusted-types-for 'script'
 | `orphaned` | 頁面不存在或座標超出文件 | 只出現在留言面板的「孤兒評論」 |
 
 **RWD 與幾何同步**
-- 裝置預設：Desktop 1440、Laptop 1280、Tablet 768、Mobile 390、Mobile 375，也可自訂。iframe 用實際寬度渲染，外層用 `transform: scale()` 縮放到符合畫面，overlay 套同一個 scale。
+- 裝置預設：Desktop 1440、Laptop 1280、Tablet 768、Mobile 390、Mobile 375，也可自訂。iframe 用實際寬度渲染，外層用 `transform: scale()` 縮放，overlay 套同一個 scale。整頁模式：iframe 高度撐成「裝置高度下量到的整頁高度」（量完固定，上限 20000px），預設縮小到整頁放得進畫布；用 +／−／0、⌘／Ctrl＋滾輪（含捏合，由 frame-agent 以 `zoomWheel` 轉送）縮放，放大後由畫布原生捲動平移。`F` 進入全畫面模式：隱藏頂列與工具列，只留右上角浮動工具列。
 - agent 用 `ResizeObserver`、`MutationObserver`、`scroll`（capture，同時涵蓋內部捲動容器）和 `requestAnimationFrame` 節流，送出 `geometry`：frame viewport 座標系下的 `rects: Record<threadId, Rect | null>`。parent 依 rect 和 scale 定位 pin；不在可視區的 pin 改在邊緣顯示指示箭頭。
 - 每則評論記錄建立時的 breakpoint，留言面板與畫面 pin 都可以篩選「只看目前寬度」或「全部」。
 
@@ -386,7 +386,7 @@ export type FrameToParent =
 12. `ImportDialog`、`SecurityReportPanel`、`CdnAllowlistPicker`（從預設清單勾選：Google Fonts、jsDelivr、unpkg、cdnjs、Tailwind Play CDN）。
 
 **M3 Viewer（依賴 M2）**
-13. `DeviceToolbar`（預設尺寸、自訂、縮放到符合畫面）、多頁導覽（收到 agent 的 `ready.pageId` 就同步頁面選單）、頂部的「不受信任內容」標示。
+13. `DeviceToolbar`（預設尺寸、自訂、縮放控制）、多頁導覽（收到 agent 的 `ready.pageId` 就同步頁面選單）、頂部的「不受信任內容」標示。
 
 **M4 評論核心（依賴 M3）**
 14. `packages/anchoring`：`describe` 和 `resolve`，加上 fingerprint 打分；用 jsdom 跑 fixture 單元測試。

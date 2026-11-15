@@ -102,6 +102,8 @@ export const FrameToParentSchema = z.discriminatedUnion('type', [
   }),
   /** 游標位置（viewport 座標）；離開 frame 時為 null */
   z.object({ v, type: z.literal('pointer'), x: finite.nullable(), y: finite.nullable() }),
+  /** iframe 內的 ⌘／Ctrl＋滾輪（含觸控板捏合）：parent 用來縮放。x、y 是 frame viewport 座標 */
+  z.object({ v, type: z.literal('zoomWheel'), dy: finite, x: finite, y: finite }),
   z.object({ v, type: z.literal('navigateRequest'), pageId: z.string().max(512) }),
   z.object({
     v,

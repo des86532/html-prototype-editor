@@ -257,6 +257,16 @@ test('markups: resolved hidden by default, shown on toggle; unnumbered markup ha
   await expect(page.getByRole('button', { name: /^標記（C）|Comment/ })).toHaveCount(0);
 });
 
+test('zoom: = leaves fit mode, 0 returns to it', async ({ page }) => {
+  await openFile(page);
+  const fit = page.getByRole('button', { name: '符合畫面（0）' });
+  await expect(fit).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('=');
+  await expect(fit).toHaveAttribute('aria-pressed', 'false');
+  await page.keyboard.press('0');
+  await expect(fit).toHaveAttribute('aria-pressed', 'true');
+});
+
 test('rect markup SVG lands at (x, y) * scale inside the frame (±2px)', async ({ page }) => {
   await openFile(page);
   await expect(shapes(page)).toHaveCount(3);

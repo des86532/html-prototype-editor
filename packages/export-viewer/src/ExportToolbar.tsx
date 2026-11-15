@@ -1,11 +1,15 @@
 import { DEVICE_PRESETS, type PageInfo } from '@hpe/shared';
 import type { DeviceState } from '@web/state/uiStore';
+import { ZoomControls } from '@web/features/viewer/ZoomControls';
 
 export interface ExportToolbarProps {
   device: DeviceState;
   onDevice: (d: DeviceState) => void;
-  fit: boolean;
-  onFit: (v: boolean) => void;
+  zoom: 'fit' | number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onFit: () => void;
+  /** 目前實際縮放比例 */
   scale: number;
   showMarkups: boolean;
   onShowMarkups: (v: boolean) => void;
@@ -40,15 +44,13 @@ export function ExportToolbar(p: ExportToolbarProps) {
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          aria-pressed={p.fit}
-          className="btn btn-secondary btn-sm btn-toggle"
-          onClick={() => p.onFit(!p.fit)}
-          title="縮放到符合畫面"
-        >
-          符合畫面{p.fit ? `（${Math.round(p.scale * 100)}%）` : ''}
-        </button>
+        <ZoomControls
+          zoom={p.zoom}
+          scale={p.scale}
+          onZoomIn={p.onZoomIn}
+          onZoomOut={p.onZoomOut}
+          onFit={p.onFit}
+        />
       </div>
 
       <label className="flex items-center gap-1 text-xs text-ink-2">

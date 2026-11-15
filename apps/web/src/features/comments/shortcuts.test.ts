@@ -16,6 +16,10 @@ function ctx(over: Partial<ShortcutContext> = {}): ShortcutContext {
     setTool: vi.fn(),
     deleteSelected: vi.fn(),
     undo: vi.fn(),
+    zoomIn: vi.fn(),
+    zoomOut: vi.fn(),
+    zoomFit: vi.fn(),
+    toggleFocusMode: vi.fn(),
     ...over,
   };
 }
@@ -49,6 +53,22 @@ describe('keyboard shortcuts', () => {
     expect(handleShortcut(ev('c'), c)).toBe(false);
     expect(c.toggleMode).not.toHaveBeenCalled();
     expect(handleShortcut(ev('C', { shiftKey: true }), c)).toBe(true);
+  });
+
+  it('zoom keys and F (focus mode) work in any mode and are ignored in inputs', () => {
+    const c = ctx({ canMarkup: false });
+    for (const key of ['=', '+']) expect(handleShortcut(ev(key), c)).toBe(true);
+    expect(c.zoomIn).toHaveBeenCalledTimes(2);
+    expect(handleShortcut(ev('-'), c)).toBe(true);
+    expect(c.zoomOut).toHaveBeenCalledTimes(1);
+    expect(handleShortcut(ev('0'), c)).toBe(true);
+    expect(c.zoomFit).toHaveBeenCalledTimes(1);
+    expect(handleShortcut(ev('f'), c)).toBe(true);
+    expect(c.toggleFocusMode).toHaveBeenCalledTimes(1);
+    const textarea = document.createElement('textarea');
+    for (const key of ['=', '-', '0', 'f'])
+      expect(handleShortcut(ev(key, {}, textarea), c)).toBe(false);
+    expect(handleShortcut(ev('-', { metaKey: true }), c)).toBe(false);
   });
 
   it('ignores events from inputs, textareas, selects and contenteditable', () => {

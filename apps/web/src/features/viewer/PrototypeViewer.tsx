@@ -2,7 +2,6 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useId,
   useMemo,
   useRef,
   useState,
@@ -45,13 +44,17 @@ import { MarkupTools } from '@/features/markup/MarkupTools';
 import { WidthChips } from '@/features/markup/WidthChips';
 import { useMarkupHistory } from '@/features/markup/useMarkupHistory';
 import { CropMarks } from '@/features/ui/CropMarks';
+import { LogoMark } from '@/features/ui/Logo';
 import { useUiStore, type DeviceState } from '@/state/uiStore';
 import { DeviceToolbar } from './DeviceToolbar';
 import { FrameWatchdog, useFrameWatchdog } from './FrameWatchdog';
 import { SandboxFrame } from './SandboxFrame';
+import { ZoomControls } from './ZoomControls';
 import { fitScale } from './fitScale';
 import { frameSrc } from './frameSrc';
 import { useFrameBridge, type BridgeWarning } from './useFrameBridge';
+import { useFullPageHeight } from './useFullPageHeight';
+import { useViewerZoom } from './useViewerZoom';
 
 export interface PrototypeViewerProps {
   version: PrototypeVersion;
@@ -110,10 +113,10 @@ export function PrototypeViewer({
   const [frameKey, setFrameKey] = useState(0);
   const [iframe, setIframe] = useState<HTMLIFrameElement | null>(null);
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
+  const [stageEl, setStageEl] = useState<HTMLDivElement | null>(null);
   const [canvasEl, setCanvasEl] = useState<HTMLElement | null>(null);
   const [selectedAnchorEl, setSelectedAnchorEl] = useState<HTMLElement | null>(null);
   const containerSize = useElementSize(containerEl);
-  const toolbarId = useId();
   const qc = useQueryClient();
 
   // 每個 viewer 重置 UI 狀態（模式、工具、選取）。
@@ -162,6 +165,8 @@ export function PrototypeViewer({
 
   const sendRef = useRef<ReturnType<typeof useFrameBridge>['send']>(() => false);
   const watchdogHandleRef = useRef<(m: FrameToParent) => void>(() => undefined);
+  const pageMeasureRef = useRef<(m: { docH: number; vh: number }) => void>(() => undefined);
+  const frameWheelRef = useRef<(m: { dy: number; x: number; y: number }) => void>(() => undefined);
 
   const onMessage = useCallback(
     (msg: FrameToParent) => {
@@ -180,6 +185,10 @@ export function PrototypeViewer({
         }
         case 'scroll':
           setScroll({ x: msg.x, y: msg.y, vw: msg.vw, vh: msg.vh });
+          pageMeasureRef.current(msg);
+          break;
+        case 'zoomWheel':
+          frameWheelRef.current(msg);
           break;
         case 'pointer': {
           // frame 回報 viewport 座標；加上最後的捲動位置換成頁面座標
@@ -264,6 +273,14 @@ export function PrototypeViewer({
   );
 
   const { width, height } = ui.device;
+  const page = useFullPageHeight({ frameKey, width, deviceHeight: height });
+  const scale =
+    ui.zoom === 'fit' ? fitScale(containerSize, { width, height: page.pageHeight }) : ui.zoom;
+  const zoom = useViewerZoom({ containerEl, stageEl, scale });
+  useLayoutEffect(() => {
+    pageMeasureRef.current = page.onScrollMessage;
+    frameWheelRef.current = zoom.frameWheel;
+  });
 
   const visible = useMemo(
     () =>
@@ -290,25 +307,26 @@ export function PrototypeViewer({
       if (!s.showMarkups) s.setShowMarkups(true);
       applyWidth(t.markup.viewport.width, t.markup.viewport.height);
       const b = shapeBounds(t.markup.shape);
-      const vw = scroll?.vw ?? t.markup.viewport.width;
-      const vh = scroll?.vh ?? t.markup.viewport.height;
-      send({
-        v: PROTOCOL_VERSION,
-        type: 'scrollTo',
-        x: Math.max(0, b.x + b.w / 2 - vw / 2),
-        y: Math.max(0, b.y + b.h / 2 - vh / 2),
-      });
+      // 整頁模式：畫布負責平移；只有超出 iframe 高度（定案後才變長）的部分要靠 iframe 內部捲動。
+      const frameY =
+        b.y + b.h > page.pageHeight ? Math.max(0, b.y + b.h - page.pageHeight + 40) : 0;
+      send({ v: PROTOCOL_VERSION, type: 'scrollTo', x: 0, y: frameY });
+      zoom.centerOn(b.x + b.w / 2, b.y + b.h / 2 - frameY);
       s.select(t.id);
     },
-    [applyWidth, scroll, send],
+    [applyWidth, page.pageHeight, send, zoom],
   );
 
   const jumpTo = useCallback(
     (t: Thread) => {
+      const widthChanged = t.markup.viewport.width !== useUiStore.getState().device.width;
       applyWidth(t.markup.viewport.width, t.markup.viewport.height);
       if (t.markup.pageId !== readyPage) {
         pendingSelectRef.current = t.id;
         reloadFrame(t.markup.pageId);
+      } else if (widthChanged) {
+        // 換寬度後要等整頁高度重新量測，才能算出捲動位置。
+        pendingSelectRef.current = t.id;
       } else {
         focusThread(t);
       }
@@ -326,10 +344,10 @@ export function PrototypeViewer({
       reloadFrame(t.markup.pageId);
       return;
     }
-    if (scroll === null) return;
+    if (scroll === null || !page.settled) return;
     pendingSelectRef.current = null;
     focusThread(t);
-  }, [threads, readyPage, scroll, reloadFrame, focusThread]);
+  }, [threads, readyPage, scroll, page.settled, reloadFrame, focusThread]);
 
   /* ---------------- 標記操作 ---------------- */
   const canManage = useCallback((t: Thread) => canManageMarkup(actor, t), [actor]);
@@ -436,9 +454,10 @@ export function PrototypeViewer({
 
   const onScrollBy = useCallback(
     (dx: number, dy: number) => {
-      send({ v: PROTOCOL_VERSION, type: 'scrollBy', dx, dy });
+      const rest = zoom.panBy(dx, dy);
+      if (rest) send({ v: PROTOCOL_VERSION, type: 'scrollBy', ...rest });
     },
-    [send],
+    [send, zoom],
   );
 
   /* ---------------- 快捷鍵 ---------------- */
@@ -476,6 +495,10 @@ export function PrototypeViewer({
         s.setMode('interact');
         return true;
       }
+      if (s.focusMode) {
+        s.setFocusMode(false);
+        return true;
+      }
       return false;
     },
     select: (id) => {
@@ -485,6 +508,10 @@ export function PrototypeViewer({
     setTool: (tool) => useUiStore.getState().setTool(tool),
     deleteSelected,
     undo,
+    zoomIn: zoom.zoomIn,
+    zoomOut: zoom.zoomOut,
+    zoomFit: zoom.zoomFit,
+    toggleFocusMode: () => useUiStore.getState().setFocusMode(!useUiStore.getState().focusMode),
   });
 
   /* ---------------- popover ---------------- */
@@ -495,73 +522,97 @@ export function PrototypeViewer({
     const sx = scroll?.x ?? 0;
     const sy = scroll?.y ?? 0;
     const vw = scroll?.vw ?? width;
-    const vh = scroll?.vh ?? height;
+    const vh = scroll?.vh ?? page.pageHeight;
     return b.x + b.w < sx || b.x > sx + vw || b.y + b.h < sy || b.y > sy + vh;
-  }, [selected, scroll, width, height]);
+  }, [selected, scroll, width, page.pageHeight]);
 
   /* ---------------- 版面 ---------------- */
-  const scale = ui.fit ? fitScale(containerSize, ui.device) : 1;
   const src = srcOverride ?? frameSrc(version.contentKey, loadedPage);
   const markupCount = threads.filter((t) => t.number !== null).length;
 
+  const presence = (
+    <PresenceBar
+      peers={liveSession.peers}
+      selfId={liveSession.selfId}
+      status={liveSession.status}
+      currentPageTitle={pageTitle}
+    />
+  );
+  const zoomControls = (
+    <ZoomControls
+      zoom={ui.zoom}
+      scale={scale}
+      onZoomIn={zoom.zoomIn}
+      onZoomOut={zoom.zoomOut}
+      onFit={zoom.zoomFit}
+    />
+  );
+
   return (
     <div className="flex h-dvh flex-col bg-stage" data-testid="prototype-viewer">
-      <header className="flex h-12 items-center gap-3 border-b border-line bg-surface px-3">
-        {headerExtra}
-        <h1 className="flex min-w-0 items-center gap-2 text-sm font-semibold text-ink">
-          {projectName && <span className="truncate">{projectName}</span>}
-          <span className="rounded border border-line px-1.5 font-mono text-xs font-medium text-ink-2">
-            v{version.number}
-          </span>
-        </h1>
-        <span role="note" className="chip chip-warn">
-          不受信任內容
-        </span>
-        <div className="ml-auto flex items-center gap-2">
-          <PresenceBar
-            peers={liveSession.peers}
-            selfId={liveSession.selfId}
-            status={liveSession.status}
-            currentPageTitle={pageTitle}
+      {!ui.focusMode && (
+        <>
+          <header className="flex h-12 items-center gap-3 border-b border-line bg-surface px-3">
+            <LogoMark className="size-5 shrink-0" />
+            {headerExtra}
+            <h1 className="flex min-w-0 items-center gap-2 text-sm font-semibold text-ink">
+              {projectName && <span className="truncate">{projectName}</span>}
+              <span className="rounded border border-line px-1.5 font-mono text-xs font-medium text-ink-2">
+                v{version.number}
+              </span>
+            </h1>
+            <span role="note" className="chip chip-warn">
+              不受信任內容
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              {presence}
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                aria-label="全畫面（F）"
+                title="全畫面（F）"
+                onClick={() => ui.setFocusMode(true)}
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 16 16"
+                  className="size-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" />
+                </svg>{' '}
+                全畫面
+              </button>
+            </div>
+          </header>
+          <DeviceToolbar
+            device={ui.device}
+            onDevice={ui.setDevice}
+            zoom={ui.zoom}
+            onZoomIn={zoom.zoomIn}
+            onZoomOut={zoom.zoomOut}
+            onFit={zoom.zoomFit}
+            scale={scale}
+            mode={mode}
+            onMode={ui.setMode}
+            canMarkup={writable}
+            showMarkups={ui.showMarkups}
+            onShowMarkups={ui.setShowMarkups}
+            showResolved={ui.showResolved}
+            onShowResolved={ui.setShowResolved}
+            panelOpen={ui.panelOpen}
+            onPanelOpen={ui.setPanelOpen}
+            markupCount={markupCount}
+            pages={version.pages}
+            pageId={readyPage ?? loadedPage}
+            onPage={reloadFrame}
+            onExport={onExport}
           />
-          {ui.toolbarCollapsed && mode === 'markup' && (
-            <span className="chip chip-accent">標記模式（C）</span>
-          )}
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            aria-expanded={!ui.toolbarCollapsed}
-            aria-controls={toolbarId}
-            onClick={() => ui.setToolbarCollapsed(!ui.toolbarCollapsed)}
-          >
-            <span aria-hidden="true">{ui.toolbarCollapsed ? '▾' : '▴'}</span>
-            {ui.toolbarCollapsed ? ' 展開工具列' : ' 收合工具列'}
-          </button>
-        </div>
-      </header>
-      {!ui.toolbarCollapsed && (
-        <DeviceToolbar
-          id={toolbarId}
-          device={ui.device}
-          onDevice={ui.setDevice}
-          fit={ui.fit}
-          onFit={ui.setFit}
-          scale={scale}
-          mode={mode}
-          onMode={ui.setMode}
-          canMarkup={writable}
-          showMarkups={ui.showMarkups}
-          onShowMarkups={ui.setShowMarkups}
-          showResolved={ui.showResolved}
-          onShowResolved={ui.setShowResolved}
-          panelOpen={ui.panelOpen}
-          onPanelOpen={ui.setPanelOpen}
-          markupCount={markupCount}
-          pages={version.pages}
-          pageId={readyPage ?? loadedPage}
-          onPage={reloadFrame}
-          onExport={onExport}
-        />
+        </>
       )}
       <div className="flex min-h-0 flex-1">
         <div className="relative min-w-0 flex-1">
@@ -571,14 +622,17 @@ export function PrototypeViewer({
             data-testid="viewer-container"
           >
             <div
+              ref={setStageEl}
               className="relative mx-auto"
-              style={{ width: width * scale, height: height * scale }}
+              style={{ width: width * scale, height: page.pageHeight * scale }}
             >
               <div
                 aria-hidden="true"
                 className="pointer-events-none absolute -top-7 left-0 font-mono text-[11px] whitespace-nowrap text-measure"
               >
-                {width} × {height} · {Math.round(scale * 100)}%
+                {width} × {height}
+                {page.pageHeight > height ? ` · 頁長 ${page.pageHeight}` : ''} ·{' '}
+                {Math.round(scale * 100)}%
               </div>
               <CropMarks />
               <SandboxFrame
@@ -586,13 +640,13 @@ export function PrototypeViewer({
                 ref={setIframe}
                 src={src}
                 width={width}
-                height={height}
+                height={page.pageHeight}
                 scale={scale}
               />
               <MarkupCanvas
                 threads={visible}
                 scroll={{ x: scroll?.x ?? 0, y: scroll?.y ?? 0 }}
-                frameSize={{ w: width, h: height }}
+                frameSize={{ w: width, h: page.pageHeight }}
                 scale={scale}
                 mode={mode}
                 tool={ui.tool}
@@ -604,6 +658,7 @@ export function PrototypeViewer({
                 onCreate={onCreate}
                 onMove={onMove}
                 onScrollBy={onScrollBy}
+                onZoomWheel={zoom.wheelAt}
                 onPointer={liveSession.sendCursor}
                 onSelectedAnchor={setSelectedAnchorEl}
                 onRootEl={setCanvasEl}
@@ -614,7 +669,7 @@ export function PrototypeViewer({
                 pageId={readyPage}
                 width={width}
                 scroll={{ x: scroll?.x ?? 0, y: scroll?.y ?? 0 }}
-                frameSize={{ w: width, h: height }}
+                frameSize={{ w: width, h: page.pageHeight }}
                 scale={scale}
               />
               {selected && (
@@ -650,6 +705,48 @@ export function PrototypeViewer({
               </div>
             )}
           </div>
+          {ui.focusMode && (
+            <div
+              role="toolbar"
+              aria-label="全畫面工具列"
+              className="card absolute right-3 top-3 z-20 flex items-center gap-2 px-2 py-1 shadow-lg"
+            >
+              <LogoMark className="size-4" />
+              {presence}
+              {writable && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm btn-toggle"
+                  aria-pressed={mode === 'markup'}
+                  data-accent=""
+                  onClick={ui.toggleMode}
+                >
+                  標記（C）
+                </button>
+              )}
+              {zoomControls}
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                aria-label="離開全畫面（F）"
+                title="離開全畫面（F）"
+                onClick={() => ui.setFocusMode(false)}
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 16 16"
+                  className="size-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M6 2v4H2M14 6h-4V2M10 14v-4h4M2 10h4v4" />
+                </svg>
+              </button>
+            </div>
+          )}
           {mode === 'markup' && (
             <MarkupTools
               tool={ui.tool}

@@ -40,6 +40,8 @@ export interface MarkupCanvasProps {
   onCreate: (shape: MarkupShape) => void;
   onMove: (t: Thread, shape: MarkupShape) => void;
   onScrollBy: (dx: number, dy: number) => void;
+  /** ⌘／Ctrl＋滾輪：dyPx 已換算成 px，clientX／clientY 是縮放錨點 */
+  onZoomWheel?: (dyPx: number, clientX: number, clientY: number) => void;
   /** 游標位置（頁面座標）；離開畫布時為 null。只有標記模式的畫布會收到指標事件 */
   onPointer?: (p: { x: number; y: number } | null) => void;
   /** 給 ThreadPopover 的 reference：目前選取標記的 badge 或外框元素 */
@@ -99,6 +101,7 @@ export function MarkupCanvas({
   onCreate,
   onMove,
   onScrollBy,
+  onZoomWheel,
   onPointer,
   onSelectedAnchor,
   onRootEl,
@@ -118,8 +121,10 @@ export function MarkupCanvas({
   );
 
   const scrollByRef = useRef(onScrollBy);
+  const zoomWheelRef = useRef(onZoomWheel);
   useEffect(() => {
     scrollByRef.current = onScrollBy;
+    zoomWheelRef.current = onZoomWheel;
   });
   useEffect(() => {
     const el = rootRef.current;
@@ -127,6 +132,10 @@ export function MarkupCanvas({
     const h = (e: WheelEvent) => {
       e.preventDefault();
       const k = e.deltaMode === 1 ? 16 : 1;
+      if (e.ctrlKey || e.metaKey) {
+        zoomWheelRef.current?.(e.deltaY * k, e.clientX, e.clientY);
+        return;
+      }
       scrollByRef.current(e.deltaX * k, e.deltaY * k);
     };
     el.addEventListener('wheel', h, { passive: false });

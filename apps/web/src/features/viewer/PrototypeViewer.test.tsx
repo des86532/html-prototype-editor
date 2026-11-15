@@ -72,13 +72,13 @@ const ready = (pageId = 'index.html'): FrameToParent => ({
   hash: '',
 });
 
-const scrollMsg = (y: number): FrameToParent => ({
+const scrollMsg = (y: number, docH = 900): FrameToParent => ({
   v: 1,
   type: 'scroll',
   x: 0,
   y,
   docW: 1440,
-  docH: 3000,
+  docH,
   vw: 1440,
   vh: 900,
 });
@@ -93,19 +93,53 @@ describe('PrototypeViewer', () => {
     expect(iframe).toHaveAttribute('sandbox', 'allow-scripts');
   });
 
-  it('the toolbar can be collapsed and expanded again', async () => {
+  it('focus mode hides the header and toolbar, leaving a floating toolbar to exit', async () => {
     mount();
     const user = userEvent.setup();
     expect(screen.getByRole('toolbar', { name: 'Viewer 工具列' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: '收合工具列' }));
+    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '全畫面（F）' }));
     expect(screen.queryByRole('toolbar', { name: 'Viewer 工具列' })).toBeNull();
-    expect(screen.getByRole('button', { name: '展開工具列' })).toHaveAttribute(
-      'aria-expanded',
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+    expect(screen.getByRole('toolbar', { name: '全畫面工具列' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '離開全畫面（F）' }));
+    expect(screen.getByRole('toolbar', { name: 'Viewer 工具列' })).toBeInTheDocument();
+    expect(screen.queryByRole('toolbar', { name: '全畫面工具列' })).toBeNull();
+    useUiStore.getState().setFocusMode(false);
+  });
+
+  it('full-page mode: the frame grows to the measured page height once it settles', async () => {
+    vi.useFakeTimers();
+    try {
+      const { iframe, fromFrame } = mount();
+      fromFrame(ready());
+      fromFrame(scrollMsg(0, 2400));
+      expect(iframe.style.height).toBe('900px');
+      await act(() => vi.advanceTimersByTimeAsync(400));
+      expect(iframe.style.height).toBe('2400px');
+      expect(screen.getByTestId('markup-svg')).toHaveAttribute('viewBox', '0 0 1440 2400');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('zoom controls leave fit mode', async () => {
+    mount();
+    const user = userEvent.setup();
+    const fit = screen.getByRole('button', { name: '符合畫面（0）' });
+    expect(fit).toHaveAttribute('aria-pressed', 'true');
+    const before = fit.textContent;
+    await user.click(screen.getByRole('button', { name: '放大（+）' }));
+    expect(screen.getByRole('button', { name: '符合畫面（0）' })).toHaveAttribute(
+      'aria-pressed',
       'false',
     );
-    await user.click(screen.getByRole('button', { name: '展開工具列' }));
-    expect(screen.getByRole('toolbar', { name: 'Viewer 工具列' })).toBeInTheDocument();
-    useUiStore.getState().setToolbarCollapsed(false);
+    expect(screen.getByRole('button', { name: '符合畫面（0）' }).textContent).not.toBe(before);
+    await user.keyboard('0');
+    expect(screen.getByRole('button', { name: '符合畫面（0）' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
   });
 
   it('on ready: sends init without a mode and never sends comment text into the frame', async () => {

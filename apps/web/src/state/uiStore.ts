@@ -23,11 +23,11 @@ export const DEFAULT_DEVICE: DeviceState = {
   height: DEVICE_PRESETS[0].height,
 };
 
-const TOOLBAR_COLLAPSED_KEY = 'hpe.viewer.toolbarCollapsed';
+const FOCUS_MODE_KEY = 'hpe.viewer.focusMode';
 
-function readToolbarCollapsed(): boolean {
+function readFocusMode(): boolean {
   try {
-    return localStorage.getItem(TOOLBAR_COLLAPSED_KEY) === '1';
+    return localStorage.getItem(FOCUS_MODE_KEY) === '1';
   } catch {
     return false;
   }
@@ -44,10 +44,10 @@ export interface UiState {
   /** 目前選取（開啟卡片）的標記 id */
   selectedId: string | null;
   device: DeviceState;
-  /** 縮放到符合畫面 */
-  fit: boolean;
-  /** viewer 工具列收合；偏好存在 localStorage，跨 viewer 保留 */
-  toolbarCollapsed: boolean;
+  /** 'fit'：整頁縮放到放得進畫布（不放大）；數字：固定比例 */
+  zoom: 'fit' | number;
+  /** 全畫面模式：隱藏頂列與工具列，只留浮動工具列；偏好存在 localStorage，跨 viewer 保留 */
+  focusMode: boolean;
   /** agent 回報的目前頁面（bundle 路徑） */
   pageId: string | null;
 
@@ -63,8 +63,8 @@ export interface UiState {
   setShowResolved(v: boolean): void;
   setPanelOpen(v: boolean): void;
   setDevice(device: DeviceState): void;
-  setFit(v: boolean): void;
-  setToolbarCollapsed(v: boolean): void;
+  setZoom(zoom: 'fit' | number): void;
+  setFocusMode(v: boolean): void;
   setPageId(id: string | null): void;
   reset(): void;
 }
@@ -79,7 +79,7 @@ const initial = {
   panelOpen: false,
   selectedId: null as string | null,
   device: DEFAULT_DEVICE,
-  fit: true,
+  zoom: 'fit' as 'fit' | number,
   pageId: null as string | null,
 };
 
@@ -87,7 +87,7 @@ const HIDDEN = { showMarkups: false, mode: 'interact' as ViewerMode, selectedId:
 
 export const useUiStore = create<UiState>()((set) => ({
   ...initial,
-  toolbarCollapsed: readToolbarCollapsed(),
+  focusMode: readFocusMode(),
   setMode: (mode) => set({ mode }),
   toggleMode: () => set((s) => ({ mode: s.mode === 'markup' ? 'interact' : 'markup' })),
   setTool: (tool) => set({ tool }),
@@ -99,15 +99,15 @@ export const useUiStore = create<UiState>()((set) => ({
   setShowResolved: (showResolved) => set({ showResolved }),
   setPanelOpen: (panelOpen) => set({ panelOpen }),
   setDevice: (device) => set({ device }),
-  setFit: (fit) => set({ fit }),
-  setToolbarCollapsed: (toolbarCollapsed) => {
+  setZoom: (zoom) => set({ zoom }),
+  setFocusMode: (focusMode) => {
     try {
-      localStorage.setItem(TOOLBAR_COLLAPSED_KEY, toolbarCollapsed ? '1' : '0');
+      localStorage.setItem(FOCUS_MODE_KEY, focusMode ? '1' : '0');
     } catch {
       /* 儲存失敗只影響下次載入，不影響這次狀態 */
     }
-    set({ toolbarCollapsed });
+    set({ focusMode });
   },
   setPageId: (pageId) => set({ pageId }),
-  reset: () => set((s) => ({ ...initial, toolbarCollapsed: s.toolbarCollapsed })),
+  reset: () => set((s) => ({ ...initial, focusMode: s.focusMode })),
 }));
