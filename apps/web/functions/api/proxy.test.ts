@@ -79,6 +79,25 @@ describe('Pages Function /api 代理', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  it('WebSocket 升級請求：帶 upgrade header，且原樣回傳上游 Response', async () => {
+    const upstream = new Response(null, { status: 200 });
+    const fetchImpl = vi.fn(async (..._args: Parameters<typeof fetch>) => upstream);
+    const res = await proxyToBackend(
+      new Request('https://app.pages.dev/api/versions/v1/live', {
+        headers: { upgrade: 'websocket', connection: 'Upgrade', origin: 'https://app.pages.dev' },
+      }),
+      'https://api.nail-it-tech.cc',
+      fetchImpl,
+    );
+    expect(res).toBe(upstream);
+    const [target, init] = fetchImpl.mock.calls[0]!;
+    expect(String(target)).toBe('https://api.nail-it-tech.cc/versions/v1/live');
+    const h = new Headers(init?.headers);
+    expect(h.get('upgrade')).toBe('websocket');
+    expect(h.get('origin')).toBe('https://app.pages.dev');
+    expect(init?.method).toBe('GET');
+  });
+
   it('未設定 BACKEND_ORIGIN 或後端連不上 → 502', async () => {
     const req = () => new Request('https://app.pages.dev/api/me');
     expect((await proxyToBackend(req(), undefined)).status).toBe(502);

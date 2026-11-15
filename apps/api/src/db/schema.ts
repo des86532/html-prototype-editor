@@ -96,6 +96,8 @@ export const threads = pgTable(
     createdById: text('created_by_id').notNull(),
     createdAt: ts('created_at').notNull().defaultNow(),
     resolvedAt: ts('resolved_at'),
+    /** 每次寫入（含留言）遞增，client 用來避免舊快照蓋掉新資料 */
+    rev: integer('rev').notNull().default(1),
   },
   (t) => [
     unique('threads_project_number_uq').on(t.projectId, t.number),

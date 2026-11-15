@@ -7,6 +7,7 @@ import {
   type GuestIdentityResponse,
   type ShareLinksResponse,
   type ShareResolveResponse,
+  LIVE_CLOSE,
 } from '@hpe/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
@@ -88,6 +89,7 @@ export function registerShareRoutes(app: FastifyInstance, ctx: AppContext, limit
       }
       return updated;
     });
+    ctx.hub.closeWhere((c) => c.shareLinkId === link.id, LIVE_CLOSE.forbidden, 'share revoked');
     return { link: toShareLink(row!) };
   });
 

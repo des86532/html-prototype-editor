@@ -1,15 +1,18 @@
 import cookie from '@fastify/cookie';
 import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
-import { AppError, UPLOAD_LIMITS } from '@hpe/shared';
+import websocket from '@fastify/websocket';
+import { AppError, LIVE_LIMITS, UPLOAD_LIMITS } from '@hpe/shared';
 import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import { ZodError } from 'zod';
 import type { AppContext, AppDeps } from './context.js';
+import { LiveHub } from './live/hub.js';
 import { RateLimiter } from './plugins/rateLimit.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerCspRoutes } from './routes/csp.js';
 import { registerExportRoutes } from './routes/exports.js';
 import { registerInternalRoutes } from './routes/internal.js';
+import { registerLiveRoutes } from './routes/live.js';
 import { registerProjectRoutes } from './routes/projects.js';
 import { registerShareRoutes } from './routes/share.js';
 import { registerThreadRoutes } from './routes/threads.js';
@@ -25,7 +28,7 @@ export async function buildApp(
   deps: AppDeps,
   options: BuildAppOptions = {},
 ): Promise<FastifyInstance> {
-  const ctx: AppContext = { ...deps, now: deps.now ?? (() => new Date()) };
+  const ctx: AppContext = { ...deps, now: deps.now ?? (() => new Date()), hub: new LiveHub() };
   const { config } = ctx;
   const limiter = options.limiter ?? new RateLimiter(config.rateLimits);
 
@@ -45,6 +48,8 @@ export async function buildApp(
     maxAge: 600,
   });
   await app.register(cookie);
+  await app.register(websocket, { options: { maxPayload: LIVE_LIMITS.maxClientMessageBytes } });
+  app.addHook('onClose', async () => ctx.hub.close());
   await app.register(multipart, {
     limits: {
       fileSize: UPLOAD_LIMITS.maxArchiveBytes,
@@ -108,6 +113,7 @@ export async function buildApp(
   registerInternalRoutes(app, ctx);
   registerCspRoutes(app, ctx, limiter);
   registerExportRoutes(app, ctx);
+  registerLiveRoutes(app, ctx);
 
   return app;
 }

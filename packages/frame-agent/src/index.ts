@@ -3,6 +3,7 @@ import { createBridge } from './bridge.js';
 import type { AgentBridge, AgentModule } from './bridge-types.js';
 import { installHeartbeat } from './heartbeat.js';
 import { installNavGuard } from './navGuard.js';
+import { installPointer } from './pointer.js';
 import { installPolyfills } from './polyfills.js';
 import { installViewport } from './viewport.js';
 
@@ -46,6 +47,7 @@ export function installAgent(): void {
     installPolyfills,
     installNavGuard,
     installViewport,
+    installPointer,
   ];
 
   for (const install of modules) {

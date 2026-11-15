@@ -23,6 +23,7 @@ export function makeThread(n: number, over: Partial<Thread> = {}): Thread {
     number: n,
     markup: makeMarkup(),
     status: 'open',
+    rev: 1,
     createdBy: alice,
     createdAt: '2026-02-01T10:00:00.000Z',
     comments: [

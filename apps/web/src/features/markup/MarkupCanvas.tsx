@@ -40,6 +40,8 @@ export interface MarkupCanvasProps {
   onCreate: (shape: MarkupShape) => void;
   onMove: (t: Thread, shape: MarkupShape) => void;
   onScrollBy: (dx: number, dy: number) => void;
+  /** 游標位置（頁面座標）；離開畫布時為 null。只有標記模式的畫布會收到指標事件 */
+  onPointer?: (p: { x: number; y: number } | null) => void;
   /** 給 ThreadPopover 的 reference：目前選取標記的 badge 或外框元素 */
   onSelectedAnchor: (el: HTMLElement | null) => void;
   /** 外層元素（popover 的 ignoreOutside） */
@@ -97,6 +99,7 @@ export function MarkupCanvas({
   onCreate,
   onMove,
   onScrollBy,
+  onPointer,
   onSelectedAnchor,
   onRootEl,
 }: MarkupCanvasProps) {
@@ -180,6 +183,7 @@ export function MarkupCanvas({
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    onPointer?.(toDoc(e));
     const g = gesture.current;
     if (!g) return;
     const p = toDoc(e);
@@ -283,6 +287,7 @@ export function MarkupCanvas({
         cursor: markup ? (tool === 'select' ? 'default' : 'crosshair') : undefined,
       }}
       onPointerDown={onPointerDown}
+      onPointerLeave={() => onPointer?.(null)}
       onPointerMove={onPointerMove}
       onPointerUp={finish}
       onPointerCancel={cancel}

@@ -59,6 +59,7 @@ describe('討論串建立與編號', () => {
     expect(t).toMatchObject({
       versionId: v,
       number: 1,
+      rev: 1,
       status: 'open',
       createdBy: { kind: 'user', name: 'owner' },
       comments: [{ body: '第一則', author: { kind: 'user' } }],
@@ -138,6 +139,24 @@ describe('討論串建立與編號', () => {
 });
 
 describe('回覆、編輯、刪除留言', () => {
+  it('每次寫入（回覆、編輯、刪除留言、patch）都遞增 rev', async () => {
+    const t = await newThread(asOwner(), '原始');
+    expect(t.rev).toBe(1);
+    const r1 = ((await post(`/threads/${t.id}/comments`, asOwner(), { body: '回' })).json() as Json)
+      .thread as Json;
+    expect(r1.rev).toBe(2);
+    const r2 = (
+      (await patch(`/comments/${r1.comments[1].id}`, asOwner(), { body: '改' })).json() as Json
+    ).thread as Json;
+    expect(r2.rev).toBe(3);
+    const r3 = ((await patch(`/threads/${t.id}`, asOwner(), { status: 'resolved' })).json() as Json)
+      .thread as Json;
+    expect(r3.rev).toBe(4);
+    const r4 = ((await del(`/comments/${r1.comments[1].id}`, asOwner())).json() as Json)
+      .thread as Json;
+    expect(r4.rev).toBe(5);
+  });
+
   it('回覆 → 編輯（設定 editedAt）→ 刪除', async () => {
     const t = await newThread(asA(), '原始');
     const reply = await post(`/threads/${t.id}/comments`, asOwner(), { body: '擁有者回覆' });

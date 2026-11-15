@@ -48,6 +48,7 @@ function mount(over: Partial<PrototypeViewerProps> = {}, threads = [t1]) {
         buildThreadUrl={(t) => `http://x/?thread=${t.id}`}
         api={api}
         srcOverride="about:blank"
+        live={false}
         {...over}
       />
     </QueryClientProvider>,

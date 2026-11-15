@@ -195,6 +195,9 @@ test('擁有者建立分享連結（commenter），訪客畫箭頭並附說明',
   await card.getByRole('button', { name: '送出' }).click();
   await expect(card).toContainText('<script>alert(1)</script>');
   await expect(badges(guest)).toHaveCount(2);
+  // 即時同步：擁有者不重新整理就看到 #2
+  await expect(badges(owner)).toHaveCount(2);
+  await expect(badges(owner).filter({ hasText: '2' })).toHaveCount(1);
   await guestCtx.close();
 
   const list = await owner.request.get(`${ORIGINS.api}/versions/${versionId}/threads`);
@@ -214,8 +217,7 @@ test('擁有者建立分享連結（commenter），訪客畫箭頭並附說明',
   ]);
 });
 
-test('擁有者（重新整理後）看到 #2，回覆並標記已解決；已解決預設隱藏、可切換顯示', async () => {
-  await openViewer(owner, `${ORIGINS.web}/p/${projectId}/v/1`);
+test('擁有者回覆並標記已解決；已解決預設隱藏、可切換顯示', async () => {
   await expect(badges(owner)).toHaveCount(2);
   const second = badges(owner).filter({ hasText: '2' });
   await expect(second).toHaveCount(1);
@@ -245,6 +247,37 @@ test('擁有者（重新整理後）看到 #2，回覆並標記已解決；已�
   await expect(panel).toContainText('#1');
   await owner.getByRole('button', { name: '顯示已解決' }).click();
   await expect(panel).toContainText('Guest Gina');
+});
+
+test('即時協作：兩個 context 互相看到頭像與游標', async ({ browser }) => {
+  const guestCtx = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
+  const guest = await guestCtx.newPage();
+  await guest.goto(shareUrl);
+  await guest.getByLabel('你的名字').fill('Live Larry');
+  await guest.getByRole('button', { name: '開始留言' }).click();
+  await waitForViewerReady(guest);
+
+  // 線上名單：雙方都看得到對方的頭像
+  const ownerGroup = owner.getByRole('group', { name: '線上成員' });
+  const guestGroup = guest.getByRole('group', { name: '線上成員' });
+  await expect(ownerGroup.getByRole('img', { name: /Live Larry/ })).toBeVisible();
+  await expect(guestGroup.getByRole('img')).toHaveCount(1);
+
+  // 游標：訪客在 prototype 上移動滑鼠，擁有者看到帶名字的游標
+  const box = (await guest.locator('iframe[title^="Prototype"]').boundingBox())!;
+  for (let i = 1; i <= 8; i++) {
+    await guest.mouse.move(box.x + 100 + i * 20, box.y + 150 + i * 10);
+  }
+  const cursor = owner.locator('[data-testid="live-cursor"][data-peer-name="Live Larry"]');
+  await expect(cursor).toBeVisible();
+
+  // 訪客切到 Tablet 768：游標消失（寬度不同），頭像標示 768px
+  await guest.getByRole('button', { name: 'Tablet 768' }).click();
+  await expect(cursor).toHaveCount(0);
+  await expect(ownerGroup.getByRole('img', { name: /768px/ })).toBeVisible();
+
+  await guestCtx.close();
+  await expect(ownerGroup.getByRole('img', { name: /Live Larry/ })).toHaveCount(0);
 });
 
 test('匯出 JSON／Markdown／單檔 HTML', async () => {

@@ -117,6 +117,7 @@ export const API_ROUTES = {
   updateVersion: { method: 'PATCH', path: '/versions/:id' },
   deleteVersion: { method: 'DELETE', path: '/versions/:id' },
   rotateContentKey: { method: 'POST', path: '/versions/:id/rotate-content-key' },
+  liveVersion: { method: 'GET', path: '/versions/:id/live' },
   listThreads: { method: 'GET', path: '/versions/:id/threads' },
   createThread: { method: 'POST', path: '/versions/:id/threads' },
   updateThread: { method: 'PATCH', path: '/threads/:id' },

@@ -72,9 +72,23 @@ async function loadThread(db: DbLike, threadId: string): Promise<ThreadResponse[
   return toThread(t, cs);
 }
 
+/** 同一個 transaction 內遞增 rev：client 用它避免較舊的快照蓋掉較新的。 */
+async function bumpRev(tx: DbLike, threadId: string): Promise<void> {
+  await tx
+    .update(threads)
+    .set({ rev: sql`${threads.rev} + 1` })
+    .where(eq(threads.id, threadId));
+}
+
 export function registerThreadRoutes(app: FastifyInstance, ctx: AppContext, limiter: RateLimiter) {
   const commentLimit = rateLimit(limiter, 'commentWrite');
   const markupLimit = rateLimit(limiter, 'markupWrite');
+
+  /** 寫入成功後廣播給同版本的所有連線，並原樣回傳給呼叫者。 */
+  function broadcastUpsert(versionId: string, thread: Thread): ThreadResponse {
+    ctx.hub.threadUpserted(versionId, thread);
+    return { thread };
+  }
 
   app.get(API_ROUTES.listThreads.path, async (req): Promise<ThreadsResponse> => {
     const { version } = await accessVersion(ctx, req, idParam(req.params));
@@ -120,7 +134,7 @@ export function registerThreadRoutes(app: FastifyInstance, ctx: AppContext, limi
         }
       });
       void reply.code(201);
-      return { thread: await loadThread(ctx.db, threadId) };
+      return broadcastUpsert(access.version.id, await loadThread(ctx.db, threadId));
     },
   );
 
@@ -145,9 +159,12 @@ export function registerThreadRoutes(app: FastifyInstance, ctx: AppContext, limi
         set.markup = { ...access.thread.markup, shape: body.shape };
       }
       if (Object.keys(set).length > 0) {
-        await ctx.db.update(threads).set(set).where(eq(threads.id, access.thread.id));
+        await ctx.db.transaction(async (tx) => {
+          await tx.update(threads).set(set).where(eq(threads.id, access.thread.id));
+          await bumpRev(tx, access.thread.id);
+        });
       }
-      return { thread: await loadThread(ctx.db, access.thread.id) };
+      return broadcastUpsert(access.thread.versionId, await loadThread(ctx.db, access.thread.id));
     },
   );
 
@@ -164,6 +181,7 @@ export function registerThreadRoutes(app: FastifyInstance, ctx: AppContext, limi
         meta: { projectId: access.project.id, number: access.thread.number },
       });
     });
+    ctx.hub.threadDeleted(access.thread.versionId, access.thread.id);
     return { ok: true };
   });
 
@@ -194,9 +212,10 @@ export function registerThreadRoutes(app: FastifyInstance, ctx: AppContext, limi
           body: body.body,
           createdAt: ctx.now(),
         });
+        await bumpRev(tx, access.thread.id);
       });
       void reply.code(201);
-      return { thread: await loadThread(ctx.db, access.thread.id) };
+      return broadcastUpsert(access.thread.versionId, await loadThread(ctx.db, access.thread.id));
     },
   );
 
@@ -207,11 +226,14 @@ export function registerThreadRoutes(app: FastifyInstance, ctx: AppContext, limi
       throw new AppError('FORBIDDEN', '只能編輯自己的留言');
     }
     const body = parseWith(UpdateCommentBodySchema, req.body);
-    await ctx.db
-      .update(comments)
-      .set({ body: body.body, editedAt: ctx.now() })
-      .where(eq(comments.id, access.comment.id));
-    return { thread: await loadThread(ctx.db, access.thread.id) };
+    await ctx.db.transaction(async (tx) => {
+      await tx
+        .update(comments)
+        .set({ body: body.body, editedAt: ctx.now() })
+        .where(eq(comments.id, access.comment.id));
+      await bumpRev(tx, access.thread.id);
+    });
+    return broadcastUpsert(access.thread.versionId, await loadThread(ctx.db, access.thread.id));
   });
 
   app.delete(API_ROUTES.deleteComment.path, async (req): Promise<ThreadResponse> => {
@@ -221,7 +243,10 @@ export function registerThreadRoutes(app: FastifyInstance, ctx: AppContext, limi
       throw new AppError('FORBIDDEN', '只能刪除自己的留言');
     }
     // 只刪留言；標記與編號保留
-    await ctx.db.delete(comments).where(eq(comments.id, access.comment.id));
-    return { thread: await loadThread(ctx.db, access.thread.id) };
+    await ctx.db.transaction(async (tx) => {
+      await tx.delete(comments).where(eq(comments.id, access.comment.id));
+      await bumpRev(tx, access.thread.id);
+    });
+    return broadcastUpsert(access.thread.versionId, await loadThread(ctx.db, access.thread.id));
   });
 }

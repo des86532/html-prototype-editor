@@ -10,9 +10,20 @@ export const threadsKey = (versionId: string) => ['threads', versionId] as const
 function upsert(list: Thread[], thread: Thread): Thread[] {
   const i = list.findIndex((t) => t.id === thread.id);
   if (i === -1) return [...list, thread];
+  // 較舊的快照（例如慢回的 HTTP 回應）不能蓋掉較新的即時推送
+  if (thread.rev < list[i]!.rev) return list;
   const next = list.slice();
   next[i] = thread;
   return next;
+}
+
+/** 即時推送：合併進 threads 快取（rev 較舊的忽略）。 */
+export function applyLiveUpsert(qc: QueryClient, versionId: string, thread: Thread): void {
+  qc.setQueryData<Thread[]>(threadsKey(versionId), (l) => upsert(l ?? [], thread));
+}
+
+export function applyLiveDelete(qc: QueryClient, versionId: string, id: string): void {
+  qc.setQueryData<Thread[]>(threadsKey(versionId), (l) => l?.filter((t) => t.id !== id));
 }
 
 /** 把 ApiError 轉成「message 已可顯示」的 Error（元件只顯示 message）。 */
@@ -96,6 +107,7 @@ export function useThreads(versionId: string | null, opts: UseThreadsOptions): T
         number: null,
         markup,
         status: 'open',
+        rev: 1,
         createdBy: me,
         createdAt: new Date().toISOString(),
         comments: [],

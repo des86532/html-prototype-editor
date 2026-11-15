@@ -24,6 +24,7 @@ export function makeThread(n: number, over: Partial<Thread> = {}): Thread {
     number: n,
     markup: makeMarkup(),
     status: 'open',
+    rev: 1,
     createdBy: alice,
     createdAt: '2026-01-01T00:00:00.000Z',
     comments: [makeComment(`c${n}`, id, alice, `comment ${n}`)],

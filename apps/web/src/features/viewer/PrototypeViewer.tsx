@@ -11,6 +11,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import {
   DEVICE_PRESETS,
+  authorId,
   FRAME_TIMINGS,
   MESSAGE_LIMITS,
   PROTOCOL_VERSION,
@@ -29,7 +30,15 @@ import { useLatest } from '@/lib/useLatest';
 import { canComment, canManageMarkup, type ThreadActor } from '@/features/comments/permissions';
 import { ThreadPopover } from '@/features/comments/ThreadPopover';
 import { useViewerShortcuts } from '@/features/comments/shortcuts';
-import { threadsKey, useThreads } from '@/features/comments/useThreads';
+import {
+  applyLiveDelete,
+  applyLiveUpsert,
+  threadsKey,
+  useThreads,
+} from '@/features/comments/useThreads';
+import { CursorLayer } from '@/features/live/CursorLayer';
+import { PresenceBar } from '@/features/live/PresenceBar';
+import { useLiveSession } from '@/features/live/useLiveSession';
 import { MarkupCanvas } from '@/features/markup/MarkupCanvas';
 import { MarkupPanel } from '@/features/markup/MarkupPanel';
 import { MarkupTools } from '@/features/markup/MarkupTools';
@@ -59,6 +68,8 @@ export interface PrototypeViewerProps {
   api?: Api;
   /** 測試用：覆寫 iframe src */
   srcOverride?: string;
+  /** 連線即時協作（名單、游標、標記同步）。預設開啟；測試與匯出檔不連線 */
+  live?: boolean;
 }
 
 const TOAST_MS = 4000;
@@ -88,6 +99,7 @@ export function PrototypeViewer({
   headerExtra,
   api,
   srcOverride,
+  live = true,
 }: PrototypeViewerProps) {
   const ui = useUiStore();
   const writable = canComment(actor);
@@ -124,6 +136,8 @@ export function PrototypeViewer({
   const [scroll, setScroll] = useState<FrameScroll | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+  const scrollRef = useRef<FrameScroll | null>(null);
+  const sendCursorRef = useRef<(p: { x: number; y: number } | null) => void>(() => undefined);
 
   const storageRef = useRef<string | undefined>(undefined);
   const pendingSelectRef = useRef<string | null>(initialThreadId);
@@ -167,6 +181,15 @@ export function PrototypeViewer({
         case 'scroll':
           setScroll({ x: msg.x, y: msg.y, vw: msg.vw, vh: msg.vh });
           break;
+        case 'pointer': {
+          // frame 回報 viewport 座標；加上最後的捲動位置換成頁面座標
+          const s = scrollRef.current;
+          if (!s) break;
+          sendCursorRef.current(
+            msg.x === null || msg.y === null ? null : { x: s.x + msg.x, y: s.y + msg.y },
+          );
+          break;
+        }
         case 'dialog': {
           const now = Date.now();
           if (now - lastToastAt.current < FRAME_TIMINGS.dialogToastThrottleMs) break;
@@ -197,6 +220,29 @@ export function PrototypeViewer({
   useLayoutEffect(() => {
     sendRef.current = send;
     watchdogHandleRef.current = watchdog.handleMessage;
+  });
+
+  const pageTitle = useCallback(
+    (path: string) => version.pages.find((p) => p.path === path)?.title ?? path,
+    [version.pages],
+  );
+  const liveSession = useLiveSession({
+    versionId: version.id,
+    enabled: live,
+    identityKey: actor.me ? authorId(actor.me) : 'anon',
+    pageId: readyPage,
+    width: ui.device.width,
+    onThreadUpsert: (t) => applyLiveUpsert(qc, version.id, t),
+    onThreadDelete: (id) => {
+      applyLiveDelete(qc, version.id, id);
+      const s = useUiStore.getState();
+      if (s.selectedId === id) s.select(null);
+    },
+    onResync: () => void qc.invalidateQueries({ queryKey: threadsKey(version.id) }),
+  });
+  useLayoutEffect(() => {
+    scrollRef.current = scroll;
+    sendCursorRef.current = liveSession.sendCursor;
   });
 
   useEffect(() => {
@@ -472,6 +518,12 @@ export function PrototypeViewer({
           不受信任內容
         </span>
         <div className="ml-auto flex items-center gap-2">
+          <PresenceBar
+            peers={liveSession.peers}
+            selfId={liveSession.selfId}
+            status={liveSession.status}
+            currentPageTitle={pageTitle}
+          />
           {ui.toolbarCollapsed && mode === 'markup' && (
             <span className="chip chip-accent">標記模式（C）</span>
           )}
@@ -552,8 +604,18 @@ export function PrototypeViewer({
                 onCreate={onCreate}
                 onMove={onMove}
                 onScrollBy={onScrollBy}
+                onPointer={liveSession.sendCursor}
                 onSelectedAnchor={setSelectedAnchorEl}
                 onRootEl={setCanvasEl}
+              />
+              <CursorLayer
+                peers={liveSession.peers}
+                selfId={liveSession.selfId}
+                pageId={readyPage}
+                width={width}
+                scroll={{ x: scroll?.x ?? 0, y: scroll?.y ?? 0 }}
+                frameSize={{ w: width, h: height }}
+                scale={scale}
               />
               {selected && (
                 <ThreadPopover

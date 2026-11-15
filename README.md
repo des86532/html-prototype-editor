@@ -1,6 +1,6 @@
 # html-prototype-editor
 
-匯入 HTML 原型、在畫面上直接畫標記（矩形 / 箭頭 / 畫筆 / 螢光筆 / 文字）並附上說明，可連同標記匯出的審閱工具。匯入的 HTML 一律視為不受信任內容，在隔離沙箱中執行。
+匯入 HTML 原型、在畫面上直接畫標記（矩形 / 箭頭 / 畫筆 / 螢光筆 / 文字）並附上說明，可多人即時協作（線上名單、即時游標、標記與回覆即時同步），並可連同標記匯出的審閱工具。匯入的 HTML 一律視為不受信任內容，在隔離沙箱中執行。
 
 完整規格與實作計畫見 [docs/SPECIFICATION.md](docs/SPECIFICATION.md)（Issue #1）。目前實作範圍是規格的 **MVP（M0–M6）**；P1（版本遷移、拖曳 pin、PNG/PDF render-worker）與 P2 尚未實作。
 
@@ -72,3 +72,5 @@ pnpm test:e2e        # Playwright（三種瀏覽器）：完整 stack — 匯入
 - **Safari／WebKit**：沒有 per-site iframe process，prototype 內的無窮迴圈會凍結整個分頁，watchdog 無法介入（security suite 的 V10 在 WebKit 以 skip 標示）；另外 WebKit 的 `connect-src 'self'` 在沙箱文件內不命中同 host，所以 content server 會額外列出該 contentKey 自己的 origin。詳見規格 Risks。
 - V9（frame 自行導向外部網址）有殘餘風險：遮罩出現前（≤ 1.5 秒）外部頁面可能短暫顯示，外部伺服器可能收到一次請求。
 - 只有一個 HTML、用 JS 切換畫面（不改網址）的 prototype：標記只依頁面檔案區分，不同畫面的標記會疊在一起。
+- 即時協作（`GET /versions/:id/live`，WebSocket）的連線名單與廣播存在單一 API process 的記憶體；多台 API 需改用 Postgres LISTEN/NOTIFY 或 Redis。Session 自然過期、訪客 token 失效要等下次重連才生效（撤銷分享連結、登出、刪除會立即中斷）。
+- Cloudflare Pages Function 的 WebSocket 轉送（`apps/web/functions/api/[[path]].ts`）只有部署後才能驗證；握手失敗時改用 `WebSocketPair` 轉送。

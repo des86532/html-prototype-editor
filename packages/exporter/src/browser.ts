@@ -98,6 +98,7 @@ export function annotationsToThreads(doc: AnnotationsDocument): Thread[] {
       number: it['x-hpe:number'],
       markup: it['x-hpe:markup'],
       status: it['x-hpe:status'],
+      rev: 1,
       createdBy: it['x-hpe:createdBy'],
       createdAt: it.created,
       ...(it['x-hpe:resolvedAt'] === undefined ? {} : { resolvedAt: it['x-hpe:resolvedAt'] }),

@@ -70,6 +70,7 @@ export function toThread(t: ThreadRow, cs: CommentRow[]): Thread {
   return {
     id: t.id,
     versionId: t.versionId,
+    rev: t.rev,
     number: t.number,
     markup: t.markup,
     status: t.status,

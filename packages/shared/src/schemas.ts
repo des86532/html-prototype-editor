@@ -100,6 +100,8 @@ export const FrameToParentSchema = z.discriminatedUnion('type', [
     vw: finite,
     vh: finite,
   }),
+  /** 游標位置（viewport 座標）；離開 frame 時為 null */
+  z.object({ v, type: z.literal('pointer'), x: finite.nullable(), y: finite.nullable() }),
   z.object({ v, type: z.literal('navigateRequest'), pageId: z.string().max(512) }),
   z.object({
     v,
@@ -142,6 +144,8 @@ export const ThreadSchema = z.object({
   createdAt: IsoDateSchema,
   resolvedAt: IsoDateSchema.optional(),
   comments: z.array(CommentSchema),
+  /** 每次寫入 +1；即時同步時用來避免較舊的快照蓋掉較新的 */
+  rev: z.number().int().positive(),
 });
 
 export const PageInfoSchema = z.object({ path: z.string(), title: z.string().nullable() });

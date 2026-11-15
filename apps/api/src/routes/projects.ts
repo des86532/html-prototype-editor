@@ -4,6 +4,7 @@ import {
   type ListProjectsResponse,
   type ProjectDetailResponse,
   type ProjectResponse,
+  LIVE_CLOSE,
 } from '@hpe/shared';
 import { asc, desc, eq, inArray } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
@@ -80,6 +81,7 @@ export function registerProjectRoutes(app: FastifyInstance, ctx: AppContext) {
         meta: { name: project.name, versions: versionIds.length },
       });
     });
+    ctx.hub.closeWhere((c) => c.projectId === project.id, LIVE_CLOSE.gone, 'project deleted');
     await gcBlobs(ctx, shas);
     return { ok: true };
   });
