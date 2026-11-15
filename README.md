@@ -21,7 +21,7 @@
 
 ## 開發
 
-需求：Node 22、pnpm 10、PostgreSQL（或 `docker compose up -d`）。
+需求：Node 22（22.22.2 以上）、pnpm 12（corepack 需 0.36 以上）、PostgreSQL（或 `docker compose up -d`）。
 
 ```bash
 pnpm install
