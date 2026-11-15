@@ -52,15 +52,25 @@ describe('uiStore', () => {
   });
 });
 
-describe('toolbarCollapsed', () => {
-  afterEach(() => s().setToolbarCollapsed(false));
+describe('zoom', () => {
+  it("defaults to 'fit' and reset() restores it", () => {
+    expect(s().zoom).toBe('fit');
+    s().setZoom(1.5);
+    expect(s().zoom).toBe(1.5);
+    s().reset();
+    expect(s().zoom).toBe('fit');
+  });
+});
+
+describe('focusMode', () => {
+  afterEach(() => s().setFocusMode(false));
 
   it('persists to localStorage and survives reset()', () => {
-    s().setToolbarCollapsed(true);
-    expect(localStorage.getItem('hpe.viewer.toolbarCollapsed')).toBe('1');
+    s().setFocusMode(true);
+    expect(localStorage.getItem('hpe.viewer.focusMode')).toBe('1');
     s().reset();
-    expect(s().toolbarCollapsed).toBe(true);
-    s().setToolbarCollapsed(false);
-    expect(localStorage.getItem('hpe.viewer.toolbarCollapsed')).toBe('0');
+    expect(s().focusMode).toBe(true);
+    s().setFocusMode(false);
+    expect(localStorage.getItem('hpe.viewer.focusMode')).toBe('0');
   });
 });

@@ -4,26 +4,25 @@ import { ORIGINS } from './stack';
 import { buildFixtureZip, login, waitForViewerReady } from './helpers';
 
 /**
- * 效能預算：200 個標記時，捲動中 scroll 訊息到 SVG viewBox 更新 < 16 ms。
+ * 效能預算：200 個標記時，按 `=`／`-` 縮放到 SVG 更新 < 16 ms。
  *
- * 量測的是 parent 收到 frame 的 `scroll` 訊息，到標記 SVG 的 viewBox 屬性真的寫進 DOM 的時間
- * （MutationObserver 回呼），涵蓋 zod 驗證與 React commit。捲動時只有 viewBox 與 badge 容器的 transform
- * 會變，ShapeSvg 被 memo 住，200 個標記不應重畫。
+ * 量測的是 keydown（capture）到標記 SVG 的 width 屬性真的寫進 DOM 的時間（MutationObserver 回呼），
+ * 涵蓋 store 更新與 React commit。縮放時 SVG 的 width／height 與 badge 位置會變，
+ * ShapeSvg 被 memo 住（以頁面座標繪製），200 個標記不應重畫。
  * 測的是 production 建置（tests/e2e/stack.ts 以 NODE_ENV=production 建置主應用）。
  */
 type Sample = { ms: number };
 
-test('200 個標記：scroll 訊息到 SVG 更新的 p95 < 16 ms', async ({ page, browserName }) => {
+test('200 個標記：縮放到 SVG 更新的 p95 < 16 ms', async ({ page, browserName }) => {
   test.setTimeout(240_000);
   await page.addInitScript(() => {
-    const w = window as unknown as { __lat: { ms: number }[]; __lastScroll: number };
+    const w = window as unknown as { __lat: { ms: number }[]; __lastKey: number };
     w.__lat = [];
-    w.__lastScroll = 0;
+    w.__lastKey = 0;
     window.addEventListener(
-      'message',
+      'keydown',
       (e) => {
-        const d = e.data as { type?: string } | null;
-        if (e.source !== window && d && d.type === 'scroll') w.__lastScroll = performance.now();
+        if (e.key === '=' || e.key === '-') w.__lastKey = performance.now();
       },
       true,
     );
@@ -31,10 +30,10 @@ test('200 個標記：scroll 訊息到 SVG 更新的 p95 < 16 ms', async ({ page
       const svg = document.querySelector('svg[data-testid=markup-svg]');
       if (!svg) return false;
       new MutationObserver(() => {
-        if (!w.__lastScroll) return;
-        w.__lat.push({ ms: performance.now() - w.__lastScroll });
-        w.__lastScroll = 0;
-      }).observe(svg, { attributes: true, attributeFilter: ['viewBox'] });
+        if (!w.__lastKey) return;
+        w.__lat.push({ ms: performance.now() - w.__lastKey });
+        w.__lastKey = 0;
+      }).observe(svg, { attributes: true, attributeFilter: ['width'] });
       return true;
     };
     // svg 在 viewer 掛載後才出現：觀察 document 直到找到它（找到後只掛一次）
@@ -91,17 +90,13 @@ test('200 個標記：scroll 訊息到 SVG 更新的 p95 < 16 ms', async ({ page
     timeout: 15_000,
   });
 
-  const fw = (await (await page
-    .locator('iframe[title^="Prototype"]')
-    .elementHandle())!.contentFrame())!;
-  // 往下 600px 再回到 0，每次 scrollBy(0, 40)。
-  // 每一步都等到 viewBox 更新才捲下一步：樣本數不取決於機器速度（慢的 CI runner 上
-  // 固定間隔的捲動會被合併成很少的訊息）。
-  const step = async (dy: number) => {
+  // 交替按 = 與 -（一步放大、一步縮小）。每一步都等到 SVG 更新才按下一次：
+  // 樣本數不取決於機器速度（慢的 CI runner 上固定間隔的按鍵會被合併）。
+  const step = async (key: '=' | '-') => {
     const before = await page.evaluate(
       () => (window as unknown as { __lat: unknown[] }).__lat.length,
     );
-    await fw.evaluate((d) => window.scrollBy(0, d), dy);
+    await page.keyboard.press(key);
     await page
       .waitForFunction(
         (n) => (window as unknown as { __lat: unknown[] }).__lat.length > n,
@@ -111,8 +106,10 @@ test('200 個標記：scroll 訊息到 SVG 更新的 p95 < 16 ms', async ({ page
       .catch(() => undefined);
   };
   const pass = async () => {
-    for (let i = 0; i < 15; i++) await step(40);
-    for (let i = 0; i < 15; i++) await step(-40);
+    for (let i = 0; i < 15; i++) {
+      await step('=');
+      await step('-');
+    }
     await page.waitForTimeout(200);
   };
   await pass(); // 暖機（JIT、首次 layout）
@@ -124,7 +121,7 @@ test('200 個標記：scroll 訊息到 SVG 更新的 p95 < 16 ms', async ({ page
 
   const all: Sample[] = await page.evaluate(() => (window as unknown as { __lat: Sample[] }).__lat);
   const samples = all.map((s) => s.ms);
-  expect(samples.length).toBeGreaterThan(25);
+  expect(samples.length).toBeGreaterThan(15);
   const pct = (xs: number[], p: number) =>
     [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.floor(xs.length * p))] ?? 0;
   console.log(

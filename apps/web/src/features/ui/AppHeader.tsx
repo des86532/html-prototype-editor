@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useLogout, useMe } from '@/features/auth/useMe';
-import { CropMarks } from './CropMarks';
+import { LogoMark } from './Logo';
 
 /** 擁有者頁面共用的頂列：品牌、麵包屑（children）、使用者與登出。 */
 export function AppHeader({ children }: { children?: ReactNode }) {
@@ -12,9 +12,7 @@ export function AppHeader({ children }: { children?: ReactNode }) {
     <header className="sticky top-0 z-30 border-b border-line bg-surface/90 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-5xl items-center gap-4 px-6">
         <Link to="/projects" className="flex items-center gap-2 text-sm font-semibold text-ink">
-          <span className="relative size-4 [&_.crop-marks]:inset-0">
-            <CropMarks />
-          </span>
+          <LogoMark className="size-6" />
           HTML Prototype Editor
         </Link>
         {children}

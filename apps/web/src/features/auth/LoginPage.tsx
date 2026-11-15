@@ -4,6 +4,7 @@ import { api as defaultApi, type Api } from '@/lib/api';
 import { apiBaseUrl, googleLoginUrl } from '@/lib/apiClient';
 import { messageForError } from '@/lib/errorMessages';
 import { CropMarks } from '@/features/ui/CropMarks';
+import { LogoMark } from '@/features/ui/Logo';
 
 const DEFAULT_LOGIN_ERROR = 'Google 登入失敗，請稍後再試。';
 const LOGIN_ERRORS: Record<string, string> = {
@@ -64,6 +65,10 @@ export function LoginPage({ api = defaultApi, error }: { api?: Api; error?: stri
     <main className="stage-grid flex min-h-dvh items-center justify-center p-6">
       <div className="card relative w-full max-w-sm space-y-4 p-8 shadow-sm">
         <CropMarks />
+        <div className="flex items-center gap-2">
+          <LogoMark className="size-8" />
+          <span className="text-sm font-semibold text-ink">HTML Prototype Editor</span>
+        </div>
         <h1 className="text-2xl font-semibold tracking-tight text-ink">登入</h1>
         <p className="text-sm text-ink-2">使用 Google 帳號登入以管理你的專案。</p>
         {/* 用 <a>：一般頂層導覽，不受 CSP connect-src 限制 */}

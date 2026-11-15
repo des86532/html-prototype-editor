@@ -16,6 +16,10 @@ export interface ShortcutContext {
   setTool: (tool: MarkupTool | 'select') => void;
   deleteSelected: () => void;
   undo: () => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  zoomFit: () => void;
+  toggleFocusMode: () => void;
 }
 
 const TOOL_KEYS: Record<string, MarkupTool | 'select'> = {
@@ -57,6 +61,19 @@ export function handleShortcut(
       return true;
     case 'Escape':
       return ctx.escape();
+    case '=':
+    case '+':
+      ctx.zoomIn();
+      return true;
+    case '-':
+      ctx.zoomOut();
+      return true;
+    case '0':
+      ctx.zoomFit();
+      return true;
+    case 'f':
+      ctx.toggleFocusMode();
+      return true;
     case 'j':
     case 'k': {
       if (ctx.navigableIds.length === 0) return false;

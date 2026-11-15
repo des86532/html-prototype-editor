@@ -110,24 +110,72 @@ test('畫矩形 → popover 聚焦「新增說明」→ 送出後顯示編號 1�
   await expect(card).toHaveCount(0);
 });
 
-test('捲動 prototype 後標記跟著頁面移動（badge 位移 = 捲動量）', async () => {
+test('整頁縮放：預設不需捲動，+／0 縮放後標記仍貼齊形狀', async () => {
   const badge = badges(owner).first();
   await expect(badge).toBeVisible();
   const frame = await frameWindow(owner);
-  // 以畫布為基準換算成頁面座標：縮放比例若在量測之間才穩定下來（慢的 WebKit runner），結果仍然一致
-  const rel = async () => {
+  const iframe = owner.locator('iframe[title^="Prototype"]');
+  const container = owner.getByTestId('viewer-container');
+
+  // 1. iframe 高度 = 裝置高度下量到的整頁高度
+  await expect
+    .poll(async () => {
+      const m = await canvasMetrics(owner);
+      const h = (await iframe.boundingBox())!.height / m.scale;
+      const docH = await frame.evaluate(() => document.documentElement.scrollHeight);
+      return Math.abs(h - docH);
+    })
+    .toBeLessThanOrEqual(2);
+
+  // 2. 預設符合畫面：畫布不需要捲動
+  const noScroll = async () =>
+    expect
+      .poll(async () => container.evaluate((el) => el.scrollHeight <= el.clientHeight + 1))
+      .toBe(true);
+  await noScroll();
+
+  // 3. badge 中心貼齊形狀右上角
+  const gap = async () => {
     const b = (await badge.boundingBox())!;
-    const m = await canvasMetrics(owner);
-    return { x: (b.x - m.box.x) / m.scale, y: (b.y - m.box.y) / m.scale };
+    const r = (await owner.locator('[data-shape-kind=rect] rect').first().boundingBox())!;
+    return Math.max(
+      Math.abs(b.x + b.width / 2 - (r.x + r.width)),
+      Math.abs(b.y + b.height / 2 - r.y),
+    );
   };
-  const before = await rel();
-  await frame.evaluate(() => window.scrollTo(0, 300));
-  await expect.poll(async () => before.y - (await rel()).y).toBeGreaterThan(300 - 3);
-  const after = await rel();
-  expect(Math.abs(before.y - after.y - 300)).toBeLessThanOrEqual(3);
-  expect(Math.abs(before.x - after.x)).toBeLessThanOrEqual(3);
-  await frame.evaluate(() => window.scrollTo(0, 0));
-  await expect.poll(async () => Math.abs((await rel()).y - before.y)).toBeLessThan(3);
+  await expect.poll(gap).toBeLessThanOrEqual(3);
+
+  // 4. 放大後仍然貼齊
+  const before = (await canvasMetrics(owner)).scale;
+  await owner.keyboard.press('=');
+  await owner.keyboard.press('=');
+  await expect.poll(async () => (await canvasMetrics(owner)).scale).toBeGreaterThan(before);
+  await expect(owner.getByRole('button', { name: '符合畫面（0）' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await expect.poll(gap).toBeLessThanOrEqual(3);
+
+  // 5. 0 回到符合畫面
+  await owner.keyboard.press('0');
+  await expect(owner.getByRole('button', { name: '符合畫面（0）' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await noScroll();
+  await expect.poll(gap).toBeLessThanOrEqual(3);
+});
+
+test('全畫面模式：F 隱藏頂列與工具列，浮動工具列可離開', async () => {
+  const pageSelect = owner.getByRole('combobox', { name: '頁面' });
+  await expect(pageSelect).toBeVisible();
+  await owner.keyboard.press('f');
+  await expect(pageSelect).toHaveCount(0);
+  await expect(owner.getByRole('toolbar', { name: '全畫面工具列' })).toBeVisible();
+  const box = await owner.getByTestId('viewer-container').boundingBox();
+  expect(box!.y).toBe(0);
+  await owner.getByRole('button', { name: '離開全畫面（F）' }).click();
+  await expect(pageSelect).toBeVisible();
 });
 
 test('RWD：切到 768 時標記隱藏並出現「1440px（1）」chip；點 chip 回到 1440', async () => {

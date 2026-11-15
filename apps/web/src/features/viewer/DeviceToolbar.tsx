@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { DEVICE_PRESETS, type PageInfo } from '@hpe/shared';
 import type { DeviceState, ViewerMode } from '@/state/uiStore';
+import { ZoomControls } from './ZoomControls';
 
 export interface DeviceToolbarProps {
-  /** 給收合按鈕的 aria-controls */
-  id: string;
   device: DeviceState;
   onDevice: (d: DeviceState) => void;
-  fit: boolean;
-  onFit: (v: boolean) => void;
+  zoom: 'fit' | number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onFit: () => void;
+  /** 目前實際縮放比例 */
   scale: number;
   mode: ViewerMode;
   onMode: (m: ViewerMode) => void;
@@ -94,7 +96,6 @@ function CustomSize({ device, onDevice }: Pick<DeviceToolbarProps, 'device' | 'o
 export function DeviceToolbar(p: DeviceToolbarProps) {
   return (
     <div
-      id={p.id}
       role="toolbar"
       aria-label="Viewer 工具列"
       className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-surface px-3 py-2"
@@ -113,18 +114,13 @@ export function DeviceToolbar(p: DeviceToolbarProps) {
           ))}
         </div>
         <CustomSize device={p.device} onDevice={p.onDevice} />
-        <button
-          type="button"
-          aria-pressed={p.fit}
-          className={toggle}
-          onClick={() => p.onFit(!p.fit)}
-          title="縮放到符合畫面"
-        >
-          <span>
-            符合畫面
-            {p.fit ? <span className="font-mono">（{Math.round(p.scale * 100)}%）</span> : ''}
-          </span>
-        </button>
+        <ZoomControls
+          zoom={p.zoom}
+          scale={p.scale}
+          onZoomIn={p.onZoomIn}
+          onZoomOut={p.onZoomOut}
+          onFit={p.onFit}
+        />
       </div>
 
       <Sep />

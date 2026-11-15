@@ -6,6 +6,7 @@ import { installNavGuard } from './navGuard.js';
 import { installPointer } from './pointer.js';
 import { installPolyfills } from './polyfills.js';
 import { installViewport } from './viewport.js';
+import { installWheelZoom } from './wheelZoom.js';
 
 export const AGENT_VERSION = '2.0.0';
 
@@ -48,6 +49,7 @@ export function installAgent(): void {
     installNavGuard,
     installViewport,
     installPointer,
+    installWheelZoom,
   ];
 
   for (const install of modules) {

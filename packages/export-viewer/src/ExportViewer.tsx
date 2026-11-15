@@ -17,7 +17,10 @@ import { MarkupPanel } from '@web/features/markup/MarkupPanel';
 import { WidthChips } from '@web/features/markup/WidthChips';
 import { FrameWatchdog, useFrameWatchdog } from '@web/features/viewer/FrameWatchdog';
 import { fitScale } from '@web/features/viewer/fitScale';
+import { LogoMark } from '@web/features/ui/Logo';
 import { useFrameBridge, type BridgeWarning } from '@web/features/viewer/useFrameBridge';
+import { useFullPageHeight } from '@web/features/viewer/useFullPageHeight';
+import { useViewerZoom } from '@web/features/viewer/useViewerZoom';
 import { truncate } from '@web/lib/format';
 import { useElementSize } from '@web/lib/useElementSize';
 import { useLatest } from '@web/lib/useLatest';
@@ -53,6 +56,7 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
   const [frameKey, setFrameKey] = useState(0);
   const [iframe, setIframe] = useState<HTMLIFrameElement | null>(null);
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
+  const [stageEl, setStageEl] = useState<HTMLDivElement | null>(null);
   const containerSize = useElementSize(containerEl);
 
   useEffect(() => {
@@ -89,6 +93,8 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
   const sendRef = useRef<ReturnType<typeof useFrameBridge>['send']>(() => false);
   const watchdogHandleRef = useRef<(m: FrameToParent) => void>(() => undefined);
   const watchdogResetRef = useRef<() => void>(() => undefined);
+  const pageMeasureRef = useRef<(m: { docH: number; vh: number }) => void>(() => undefined);
+  const frameWheelRef = useRef<(m: { dy: number; x: number; y: number }) => void>(() => undefined);
 
   const reloadFrame = useCallback((page: string) => {
     setLoadedPage(page);
@@ -109,6 +115,10 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
           break;
         case 'scroll':
           setScroll({ x: msg.x, y: msg.y, vw: msg.vw, vh: msg.vh });
+          pageMeasureRef.current(msg);
+          break;
+        case 'zoomWheel':
+          frameWheelRef.current(msg);
           break;
         case 'navigateRequest': {
           const target = resolvePageRequest(msg.pageId, pagesRef.current);
@@ -150,6 +160,14 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
   });
 
   const { width, height } = ui.device;
+  const page = useFullPageHeight({ frameKey, width, deviceHeight: height });
+  const scale =
+    ui.zoom === 'fit' ? fitScale(containerSize, { width, height: page.pageHeight }) : ui.zoom;
+  const zoom = useViewerZoom({ containerEl, stageEl, scale });
+  useLayoutEffect(() => {
+    pageMeasureRef.current = page.onScrollMessage;
+    frameWheelRef.current = zoom.frameWheel;
+  });
 
   /* ---------------- 標記 ---------------- */
   const visible = useMemo(
@@ -170,7 +188,8 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
     (thread: Thread) => {
       const s = useUiStore.getState();
       const w = thread.markup.viewport.width;
-      if (w !== s.device.width) {
+      const widthChanged = w !== s.device.width;
+      if (widthChanged) {
         const preset = DEVICE_PRESETS.find((p) => p.width === w);
         s.setDevice(
           preset
@@ -183,29 +202,30 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
         reloadFrame(thread.markup.pageId);
         return;
       }
+      if (widthChanged) {
+        // 換寬度後要等整頁高度重新量測，才能算出捲動位置。
+        pendingSelectRef.current = thread.id;
+        return;
+      }
       const b = shapeBounds(thread.markup.shape);
-      const vw = scroll?.vw ?? w;
-      const vh = scroll?.vh ?? thread.markup.viewport.height;
-      send({
-        v: PROTOCOL_VERSION,
-        type: 'scrollTo',
-        x: Math.max(0, b.x + b.w / 2 - vw / 2),
-        y: Math.max(0, b.y + b.h / 2 - vh / 2),
-      });
+      const frameY =
+        b.y + b.h > page.pageHeight ? Math.max(0, b.y + b.h - page.pageHeight + 40) : 0;
+      send({ v: PROTOCOL_VERSION, type: 'scrollTo', x: 0, y: frameY });
+      zoom.centerOn(b.x + b.w / 2, b.y + b.h / 2 - frameY);
       s.select(thread.id);
     },
-    [readyPage, reloadFrame, scroll, send],
+    [readyPage, reloadFrame, page.pageHeight, send, zoom],
   );
 
   // 面板選取跨頁時：等新頁面載入並收到第一則 scroll（agent 已可捲動）後才選取。
   useEffect(() => {
     const id = pendingSelectRef.current;
-    if (!id || readyPage === null || scroll === null) return;
+    if (!id || readyPage === null || scroll === null || !page.settled) return;
     const t = threads.find((x) => x.id === id);
     pendingSelectRef.current = null;
     if (!t || t.markup.pageId !== readyPage) return;
     jumpTo(t);
-  }, [threads, readyPage, scroll, jumpTo]);
+  }, [threads, readyPage, scroll, page.settled, jumpTo]);
 
   const navigableIds = useMemo(
     () =>
@@ -239,6 +259,10 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
     setTool: noop,
     deleteSelected: noop,
     undo: noop,
+    zoomIn: zoom.zoomIn,
+    zoomOut: zoom.zoomOut,
+    zoomFit: zoom.zoomFit,
+    toggleFocusMode: noop,
   });
 
   const selected = visible.find((t) => t.id === ui.selectedId) ?? null;
@@ -254,7 +278,6 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
   }, [selected, scroll]);
 
   /* ---------------- 版面 ---------------- */
-  const scale = ui.fit ? fitScale(containerSize, ui.device) : 1;
   const srcDoc = useMemo(
     () => injectAgent(pages[loadedPage] ?? '', agentSource, loadedPage),
     [pages, loadedPage, agentSource],
@@ -263,6 +286,7 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
   return (
     <div className="flex h-dvh flex-col bg-stage" data-testid="export-viewer">
       <header className="flex items-center gap-3 border-b border-line bg-surface px-3 py-2">
+        <LogoMark className="size-5 shrink-0" />
         <h1 className="truncate text-sm font-semibold">
           {meta.projectName} · v{meta.versionNumber}
         </h1>
@@ -273,8 +297,10 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
       <ExportToolbar
         device={ui.device}
         onDevice={ui.setDevice}
-        fit={ui.fit}
-        onFit={ui.setFit}
+        zoom={ui.zoom}
+        onZoomIn={zoom.zoomIn}
+        onZoomOut={zoom.zoomOut}
+        onFit={zoom.zoomFit}
         scale={scale}
         showMarkups={ui.showMarkups}
         onShowMarkups={ui.setShowMarkups}
@@ -295,21 +321,22 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
             data-testid="viewer-container"
           >
             <div
+              ref={setStageEl}
               className="relative mx-auto"
-              style={{ width: width * scale, height: height * scale }}
+              style={{ width: width * scale, height: page.pageHeight * scale }}
             >
               <ExportSandboxFrame
                 key={frameKey}
                 ref={setIframe}
                 srcDoc={srcDoc}
                 width={width}
-                height={height}
+                height={page.pageHeight}
                 scale={scale}
               />
               <MarkupCanvas
                 threads={visible}
                 scroll={scroll ?? { x: 0, y: 0 }}
-                frameSize={{ w: width, h: height }}
+                frameSize={{ w: width, h: page.pageHeight }}
                 scale={scale}
                 mode="interact"
                 tool="select"
@@ -320,7 +347,11 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
                 onSelect={ui.select}
                 onCreate={noop}
                 onMove={noop}
-                onScrollBy={(dx, dy) => send({ v: PROTOCOL_VERSION, type: 'scrollBy', dx, dy })}
+                onScrollBy={(dx, dy) => {
+                  const rest = zoom.panBy(dx, dy);
+                  if (rest) send({ v: PROTOCOL_VERSION, type: 'scrollBy', ...rest });
+                }}
+                onZoomWheel={zoom.wheelAt}
                 onSelectedAnchor={setSelectedAnchorEl}
                 onRootEl={setCanvasEl}
               />
