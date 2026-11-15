@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { DEFAULT_RATE_LIMITS } from '../config.js';
 import {
+  sampleMarkup,
   createHarness,
-  sampleAnchor,
   shareHeaders,
   threadBody,
   type Harness,
@@ -49,18 +50,32 @@ async function newThread(headers: Record<string, string>, body = '內容') {
 }
 
 describe('討論串建立與編號', () => {
-  it('建立 thread 帶第一則留言，回傳 ThreadResponse 形狀', async () => {
-    const t = await newThread(asOwner(), '第一則');
+  it('帶說明建立：number 為 1 並有一則 comment，回傳 ThreadResponse 形狀', async () => {
+    const p = (await h.createProject(owner, '首個')).id;
+    const v = (await h.uploadHtml(owner, p)).id;
+    const res = await post(`/versions/${v}/threads`, asOwner(), threadBody('第一則'));
+    expect(res.statusCode).toBe(201);
+    const t = (res.json() as Json).thread as Json;
     expect(t).toMatchObject({
-      versionId,
+      versionId: v,
+      number: 1,
+      rev: 1,
       status: 'open',
-      tags: [],
       createdBy: { kind: 'user', name: 'owner' },
       comments: [{ body: '第一則', author: { kind: 'user' } }],
     });
-    expect(t.anchor).toEqual(sampleAnchor());
+    expect(t.markup).toEqual(sampleMarkup());
     expect(t.resolvedAt).toBeUndefined();
-    expect(typeof t.number).toBe('number');
+  });
+
+  it('不帶說明建立：number 為 null、沒有留言', async () => {
+    const res = await post(`/versions/${versionId}/threads`, asOwner(), {
+      markup: sampleMarkup(),
+    });
+    expect(res.statusCode).toBe(201);
+    const t = (res.json() as Json).thread as Json;
+    expect(t.number).toBeNull();
+    expect(t.comments).toEqual([]);
   });
 
   it('並行建立：編號在專案內唯一且連續', async () => {
@@ -91,17 +106,21 @@ describe('討論串建立與編號', () => {
     expect(t2.number).toBeGreaterThan(t1.number);
   });
 
-  it('驗證：anchor 結構、body 長度與空白', async () => {
+  it('驗證：markup 結構、色盤、點數上限、body 長度與空白', async () => {
     const url = `/versions/${versionId}/threads`;
-    expect((await post(url, asOwner(), { anchor: { nope: 1 }, body: 'x' })).statusCode).toBe(400);
+    expect((await post(url, asOwner(), { markup: { nope: 1 }, body: 'x' })).statusCode).toBe(400);
     expect((await post(url, asOwner(), threadBody('   '))).statusCode).toBe(400);
     expect((await post(url, asOwner(), threadBody('x'.repeat(5001)))).statusCode).toBe(400);
     expect((await post(url, asOwner(), threadBody('x'.repeat(5000)))).statusCode).toBe(201);
-    expect((await post(url, asOwner(), threadBody('x', ['bug', 'nope'] as never))).statusCode).toBe(
-      400,
-    );
-    const tagged = await post(url, asOwner(), threadBody('tagged', ['bug', 'bug', 'copy']));
-    expect(((tagged.json() as Json).thread as Json).tags).toEqual(['bug', 'copy']);
+    const badColor = sampleMarkup({
+      shape: { kind: 'rect', x: 0, y: 0, w: 10, h: 10, color: 'red' as never, stroke: 4 },
+    });
+    expect((await post(url, asOwner(), { markup: badColor })).statusCode).toBe(400);
+    const points = (n: number): [number, number][] => Array.from({ length: n }, (_, i) => [i, i]);
+    const pen = (n: number) =>
+      sampleMarkup({ shape: { kind: 'pen', points: points(n), color: '#e5484d', stroke: 2 } });
+    expect((await post(url, asOwner(), { markup: pen(2001) })).statusCode).toBe(400);
+    expect((await post(url, asOwner(), { markup: pen(2000) })).statusCode).toBe(201);
   });
 
   it('留言內容逐字儲存，不解析、不轉義', async () => {
@@ -120,7 +139,25 @@ describe('討論串建立與編號', () => {
 });
 
 describe('回覆、編輯、刪除留言', () => {
-  it('回覆 → 編輯（設定 editedAt）→ 刪除；刪除最後一則連 thread 一起刪', async () => {
+  it('每次寫入（回覆、編輯、刪除留言、patch）都遞增 rev', async () => {
+    const t = await newThread(asOwner(), '原始');
+    expect(t.rev).toBe(1);
+    const r1 = ((await post(`/threads/${t.id}/comments`, asOwner(), { body: '回' })).json() as Json)
+      .thread as Json;
+    expect(r1.rev).toBe(2);
+    const r2 = (
+      (await patch(`/comments/${r1.comments[1].id}`, asOwner(), { body: '改' })).json() as Json
+    ).thread as Json;
+    expect(r2.rev).toBe(3);
+    const r3 = ((await patch(`/threads/${t.id}`, asOwner(), { status: 'resolved' })).json() as Json)
+      .thread as Json;
+    expect(r3.rev).toBe(4);
+    const r4 = ((await del(`/comments/${r1.comments[1].id}`, asOwner())).json() as Json)
+      .thread as Json;
+    expect(r4.rev).toBe(5);
+  });
+
+  it('回覆 → 編輯（設定 editedAt）→ 刪除', async () => {
     const t = await newThread(asA(), '原始');
     const reply = await post(`/threads/${t.id}/comments`, asOwner(), { body: '擁有者回覆' });
     expect(reply.statusCode).toBe(201);
@@ -136,44 +173,104 @@ describe('回覆、編輯、刪除留言', () => {
 
     const d1 = await del(`/comments/${cid}`, asOwner());
     expect(d1.json()).toMatchObject({ thread: { id: t.id, comments: [{ body: '原始' }] } });
-    const d2 = await del(`/comments/${t.comments[0].id}`, asA());
-    expect(d2.statusCode).toBe(200);
-    expect(d2.json()).toEqual({ thread: null });
-    const list = await h.app.inject({
-      method: 'GET',
-      url: `/versions/${versionId}/threads`,
-      headers: asOwner(),
-    });
-    expect(((list.json() as Json).threads as Json[]).some((x) => x.id === t.id)).toBe(false);
-    const audit = await h.testDb.pool.query(
-      "select 1 from audit_log where action = 'thread.delete' and target = $1",
-      [t.id],
-    );
-    expect(audit.rowCount).toBe(1);
   });
 
-  it('狀態：resolve 設定 resolvedAt，reopen 清除；標籤去重並限制數量', async () => {
+  it('狀態：resolve 設定 resolvedAt，reopen 清除；空 patch 為 400', async () => {
     const t = await newThread(asOwner());
     const r = await patch(`/threads/${t.id}`, asOwner(), { status: 'resolved' });
     const resolved = (r.json() as Json).thread as Json;
     expect(resolved.status).toBe('resolved');
     expect(typeof resolved.resolvedAt).toBe('string');
-    const o = await patch(`/threads/${t.id}`, asOwner(), {
-      status: 'open',
-      tags: ['design', 'design', 'bug'],
-    });
+    const o = await patch(`/threads/${t.id}`, asOwner(), { status: 'open' });
     const reopened = (o.json() as Json).thread as Json;
     expect(reopened.status).toBe('open');
     expect(reopened.resolvedAt).toBeUndefined();
-    expect(reopened.tags).toEqual(['design', 'bug']);
     expect((await patch(`/threads/${t.id}`, asOwner(), {})).statusCode).toBe(400);
-    expect(
-      (
-        await patch(`/threads/${t.id}`, asOwner(), {
-          tags: ['bug', 'copy', 'design', 'question', 'suggestion', 'bug2'],
-        })
-      ).statusCode,
-    ).toBe(400);
+  });
+
+  it('PATCH shape：不同 kind → 400；同 kind → 只換 shape，pageId 與 viewport 不變', async () => {
+    const t = await newThread(asOwner());
+    const arrow = {
+      kind: 'arrow',
+      from: { x: 0, y: 0 },
+      to: { x: 50, y: 50 },
+      color: '#e5484d',
+      stroke: 4,
+    };
+    expect((await patch(`/threads/${t.id}`, asOwner(), { shape: arrow })).statusCode).toBe(400);
+    const moved = {
+      kind: 'rect',
+      x: 200,
+      y: 300,
+      w: 100,
+      h: 20,
+      color: '#0091ff',
+      stroke: 2,
+    };
+    const res = await patch(`/threads/${t.id}`, asOwner(), { shape: moved });
+    expect(res.statusCode).toBe(200);
+    const markup = ((res.json() as Json).thread as Json).markup as Json;
+    expect(markup.shape).toEqual(moved);
+    expect(markup.pageId).toBe('index.html');
+    expect(markup.viewport).toEqual({ width: 1440, height: 900 });
+  });
+
+  it('刪除唯一一則留言：標記仍在，編號保留', async () => {
+    const t = await newThread(asA(), '唯一');
+    const res = await del(`/comments/${t.comments[0].id}`, asA());
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ thread: { id: t.id, number: t.number, comments: [] } });
+    const list = await h.app.inject({
+      method: 'GET',
+      url: `/versions/${versionId}/threads`,
+      headers: asOwner(),
+    });
+    const found = ((list.json() as Json).threads as Json[]).find((x) => x.id === t.id)!;
+    expect(found.number).toBe(t.number);
+  });
+
+  it('對無編號的標記回覆 → 取得下一個編號', async () => {
+    const p = (await h.createProject(owner, '回覆編號')).id;
+    const v = (await h.uploadHtml(owner, p)).id;
+    const url = `/versions/${v}/threads`;
+    const first = ((await post(url, asOwner(), threadBody('一')).then((r) => r.json())) as Json)
+      .thread as Json;
+    expect(first.number).toBe(1);
+    const bare = (
+      (await post(url, asOwner(), { markup: sampleMarkup() }).then((r) => r.json())) as Json
+    ).thread as Json;
+    const reply = await post(`/threads/${bare.id}/comments`, asOwner(), { body: '說明' });
+    expect(((reply.json() as Json).thread as Json).number).toBe(2);
+    const again = await post(`/threads/${bare.id}/comments`, asOwner(), { body: '再一則' });
+    expect(((again.json() as Json).thread as Json).number).toBe(2);
+  });
+
+  it('並行回覆同一個無編號標記：只取一個號碼', async () => {
+    const p = (await h.createProject(owner, '並行回覆')).id;
+    const v = (await h.uploadHtml(owner, p)).id;
+    const bare = (
+      (await post(`/versions/${v}/threads`, asOwner(), { markup: sampleMarkup() }).then((r) =>
+        r.json(),
+      )) as Json
+    ).thread as Json;
+    const results = await Promise.all([
+      post(`/threads/${bare.id}/comments`, asOwner(), { body: 'a' }),
+      post(`/threads/${bare.id}/comments`, asOwner(), { body: 'b' }),
+    ]);
+    expect(results.map((r) => r.statusCode)).toEqual([201, 201]);
+    const list = await h.app.inject({
+      method: 'GET',
+      url: `/versions/${v}/threads`,
+      headers: asOwner(),
+    });
+    const found = ((list.json() as Json).threads as Json[]).find((x) => x.id === bare.id)!;
+    expect(found.number).toBe(1);
+    expect(found.comments).toHaveLength(2);
+    const seq = await h.testDb.pool.query(
+      'select last_number from thread_number_seq where project_id = $1',
+      [p],
+    );
+    expect(seq.rows[0].last_number).toBe(1);
   });
 });
 
@@ -183,9 +280,7 @@ describe('授權矩陣', () => {
     const tB = await newThread(asB(), 'B 的');
 
     // 自己的 thread：可改狀態、標籤、刪除
-    expect(
-      (await patch(`/threads/${tA.id}`, asA(), { status: 'resolved', tags: ['bug'] })).statusCode,
-    ).toBe(200);
+    expect((await patch(`/threads/${tA.id}`, asA(), { status: 'resolved' })).statusCode).toBe(200);
     // 別人的 thread：不行
     for (const res of [
       await patch(`/threads/${tB.id}`, asA(), { status: 'resolved' }),
@@ -412,6 +507,7 @@ describe('留言頻率限制', () => {
           shareOpen: { capacity: 3, refillPerSecond: 0.001 },
           guestIdentity: { capacity: 2, refillPerSecond: 0.001 },
           commentWrite: { capacity: 2, refillPerSecond: 0.001 },
+          markupWrite: { capacity: 100, refillPerSecond: 100 },
           cspReport: { capacity: 100, refillPerSecond: 100 },
         },
       },
@@ -444,15 +540,23 @@ describe('留言頻率限制', () => {
       ).toBe(200);
 
       const headers = shareHeaders(l1.token, g1);
+      const made = await limited.app.inject({
+        method: 'POST',
+        url: `/versions/${v}/threads`,
+        headers,
+        payload: threadBody('first'),
+      });
+      expect(made.statusCode).toBe(201);
+      const threadId = ((made.json() as Json).thread as Json).id as string;
       const codes: number[] = [];
       for (let i = 0; i < 3; i += 1) {
         codes.push(
           (
             await limited.app.inject({
               method: 'POST',
-              url: `/versions/${v}/threads`,
+              url: `/threads/${threadId}/comments`,
               headers,
-              payload: threadBody(`c${i}`),
+              payload: { body: `c${i}` },
             })
           ).statusCode,
         );
@@ -465,6 +569,41 @@ describe('留言頻率限制', () => {
           (await limited.app.inject({ method: 'GET', url: `/share/${l2.token}` })).statusCode,
         );
       expect(opens).toEqual([200, 200, 200, 429]);
+    } finally {
+      await limited.close();
+    }
+  });
+
+  it('標記寫入有自己的額度：同一個 share token 連續 121 個標記，第 121 個回 429', async () => {
+    const limited = await createHarness({
+      config: {
+        rateLimits: {
+          ...DEFAULT_RATE_LIMITS,
+          markupWrite: { capacity: 120, refillPerSecond: 0 },
+        },
+      },
+    });
+    try {
+      const o = await limited.login('rl2@example.com');
+      const p = (await limited.createProject(o)).id;
+      const v = (await limited.uploadHtml(o, p)).id;
+      const link = await limited.createShare(o, p, 'commenter');
+      const headers = shareHeaders(link.token, await limited.guest(link.token));
+      const codes: number[] = [];
+      for (let i = 0; i < 121; i += 1) {
+        codes.push(
+          (
+            await limited.app.inject({
+              method: 'POST',
+              url: `/versions/${v}/threads`,
+              headers,
+              payload: { markup: sampleMarkup() },
+            })
+          ).statusCode,
+        );
+      }
+      expect(codes.slice(0, 120)).toEqual(Array(120).fill(201));
+      expect(codes[120]).toBe(429);
     } finally {
       await limited.close();
     }

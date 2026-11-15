@@ -1,0 +1,1 @@
+ALTER TABLE "threads" ADD COLUMN "rev" integer DEFAULT 1 NOT NULL;

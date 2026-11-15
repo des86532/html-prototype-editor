@@ -1,7 +1,7 @@
 import type { AnnotationsDocument, Thread } from '@hpe/shared';
 import { AnnotationsDocumentSchema } from '@hpe/shared';
 
-/* 本檔只依賴 @hpe/shared（無 parse5／fflate／Node API），export-viewer shell 直接打包它。 */
+/* 本檔只依賴 @hpe/shared（無 parse5／Node API），export-viewer shell 直接打包它。 */
 
 /** 內嵌到 `<script>` 時避免提前結束或進入 script-data 的註解狀態。 */
 export function escapeForScript(js: string): string {
@@ -88,17 +88,17 @@ export function parsePayload(text: string): SingleFilePayload {
   };
 }
 
-/** annotations.json（`x-hpe:` 欄位）→ Thread[]（依編號排序）。shell 與再匯入共用。 */
+/** annotations.json（`x-hpe:` 欄位）→ Thread[]（依建立時間排序）。shell 用。 */
 export function annotationsToThreads(doc: AnnotationsDocument): Thread[] {
   return [...doc.items]
-    .sort((a, b) => a['x-hpe:number'] - b['x-hpe:number'])
+    .sort((a, b) => (a.created < b.created ? -1 : a.created > b.created ? 1 : 0))
     .map((it) => ({
       id: it['x-hpe:threadId'],
       versionId: doc.version.id,
       number: it['x-hpe:number'],
-      anchor: it['x-hpe:anchor'],
+      markup: it['x-hpe:markup'],
       status: it['x-hpe:status'],
-      tags: [...it['x-hpe:tags']],
+      rev: 1,
       createdBy: it['x-hpe:createdBy'],
       createdAt: it.created,
       ...(it['x-hpe:resolvedAt'] === undefined ? {} : { resolvedAt: it['x-hpe:resolvedAt'] }),

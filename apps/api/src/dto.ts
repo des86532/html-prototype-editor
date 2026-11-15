@@ -70,15 +70,14 @@ export function toThread(t: ThreadRow, cs: CommentRow[]): Thread {
   return {
     id: t.id,
     versionId: t.versionId,
+    rev: t.rev,
     number: t.number,
-    anchor: t.anchor,
+    markup: t.markup,
     status: t.status,
-    tags: t.tags,
     createdBy: t.createdBy,
     createdAt: iso(t.createdAt),
     ...(t.resolvedAt ? { resolvedAt: iso(t.resolvedAt) } : {}),
     comments: sorted.map(toComment),
-    ...(t.carriedFrom ? { carriedFrom: t.carriedFrom } : {}),
   };
 }
 

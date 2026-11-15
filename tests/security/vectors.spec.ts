@@ -277,21 +277,21 @@ test.describe('V11 alert() 迴圈', () => {
   });
 });
 
-test.describe('V12 偽造 pick', () => {
-  test('schema 通過但只以純文字顯示，沒有執行任何 script', async ({ harness: h }) => {
-    await h.open('v12-spoof-pick.html');
+test.describe('V12 偽造訊息', () => {
+  test('schema 通過的只以純文字顯示，錯誤型別與未知 type 被丟棄，沒有執行任何 script', async ({
+    harness: h,
+  }) => {
+    await h.open('v12-spoof-messages.html');
     await h.waitForVector();
     const evil = '<img src=x onerror="window.__xss=1;alert(1)">';
-    await expect(h.page.getByTestId('pick-css')).toHaveText(evil);
-    await expect(h.page.getByTestId('pick-snapshot')).toHaveText(`img: ${evil}`);
     await expect(h.page.getByTestId('toast').first()).toHaveText(`alert: ${evil}`);
     expect(await h.page.locator('img').count()).toBe(0);
     expect(
       await h.page.evaluate(() => (window as unknown as { __xss?: unknown }).__xss),
     ).toBeUndefined();
     const stats = await h.stats();
-    expect(stats.counts.pick).toBe(1); // 超過 1 KB 的 selector 那則被 schema 擋下
-    expect(stats.dropped.schema ?? 0).toBeGreaterThanOrEqual(3);
+    expect(stats.counts.scroll ?? 0).toBeGreaterThanOrEqual(1);
+    expect(stats.dropped.schema ?? 0).toBeGreaterThanOrEqual(2); // docW 型別錯誤、未知 type
   });
 });
 
@@ -309,10 +309,10 @@ test.describe('V13 超大／高頻訊息', () => {
     expect(stats.dropped['too-large'] ?? 0).toBeGreaterThanOrEqual(1);
     expect(stats.dropped['rate-limited'] ?? 0).toBeGreaterThan(1000);
     // 3 秒內最多通過 ~120 則/秒（+ 初始額度）
-    expect(stats.counts.hover ?? 0).toBeLessThan(800);
+    expect(stats.counts.scroll ?? 0).toBeLessThan(800);
     expect(stats.maxJitterMs).toBeLessThan(1500);
     console.log(
-      `[V13] sent=${r?.sent} accepted hover=${stats.counts.hover} dropped=${JSON.stringify(stats.dropped)} maxJitter=${Math.round(stats.maxJitterMs)}ms`,
+      `[V13] sent=${r?.sent} accepted scroll=${stats.counts.scroll} dropped=${JSON.stringify(stats.dropped)} maxJitter=${Math.round(stats.maxJitterMs)}ms`,
     );
   });
 });
@@ -328,10 +328,8 @@ test.describe('V14 prototype 監聽所有 message', () => {
     expect(seen?.length).toBeGreaterThanOrEqual(3);
     const types = new Set<string>();
     const allowed: Record<string, string[]> = {
-      init: ['v', 'type', 'mode', 'storageSeed'],
-      trackAnchors: ['v', 'type', 'threadIds'],
+      init: ['v', 'type', 'storageSeed'],
       ping: ['v', 'type', 'seq'],
-      setMode: ['v', 'type', 'mode'],
     };
     for (const m of seen ?? []) {
       for (const secret of SECRETS) expect(m.json).not.toContain(secret);
@@ -346,8 +344,8 @@ test.describe('V14 prototype 監聽所有 message', () => {
         true,
       );
     }
-    // 不是空轉：parent 確實送了 init、trackAnchors 與心跳。
-    for (const t of ['init', 'trackAnchors', 'ping']) expect(types.has(t), `saw ${t}`).toBe(true);
+    // 不是空轉：parent 確實送了 init 與心跳。
+    for (const t of ['init', 'ping']) expect(types.has(t), `saw ${t}`).toBe(true);
     // parent 自己的畫面上確實有機密（證明 sentinel 存在於 parent 狀態）。
     await expect(h.page.getByTestId('parent-comment')).toContainText('SECRET-COMMENT-BODY');
   });

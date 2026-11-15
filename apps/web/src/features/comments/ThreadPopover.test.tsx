@@ -11,7 +11,8 @@ function actions(): ThreadActions {
   return {
     onReply: vi.fn(),
     onSetStatus: vi.fn(),
-    onSetTags: vi.fn(),
+    onMoveMarkup: vi.fn(),
+    onDeleteThread: vi.fn(),
     onEditComment: vi.fn(),
     onDeleteComment: vi.fn(),
     onCopyLink: vi.fn(),
@@ -22,6 +23,8 @@ function Harness({
   actor = { me: alice, role: 'owner' },
   a = actions(),
   onClose = vi.fn(),
+  canDelete = false,
+  onDeleteMarkup = vi.fn(),
   thread = makeThread(12, {
     comments: [
       makeComment('c1', 't12', alice, 'first **bold**'),
@@ -32,6 +35,8 @@ function Harness({
   actor?: ThreadActor;
   a?: ThreadActions;
   onClose?: (r: string) => void;
+  canDelete?: boolean;
+  onDeleteMarkup?: () => void;
   thread?: ReturnType<typeof makeThread>;
 }) {
   const [ref, setRef] = useState<HTMLButtonElement | null>(null);
@@ -45,6 +50,8 @@ function Harness({
         referenceEl={ref}
         actor={actor}
         actions={a}
+        canDelete={canDelete}
+        onDeleteMarkup={onDeleteMarkup}
         onClose={onClose}
       />
     </div>
@@ -54,13 +61,12 @@ function Harness({
 describe('ThreadPopover', () => {
   it('is a labelled dialog with content in the specified order', async () => {
     render(<Harness />);
-    const dialog = await screen.findByRole('dialog', { name: '評論 #12 討論串' });
+    const dialog = await screen.findByRole('dialog', { name: '標記 #12' });
     const text = dialog.textContent ?? '';
-    // 完整討論串 → 回覆輸入框 → Resolve → 標籤
-    expect(text.indexOf('first')).toBeLessThan(text.indexOf('Resolve'));
+    // 完整討論串 → 回覆輸入框 → 解決
+    expect(text.indexOf('first')).toBeLessThan(text.indexOf('標記為已解決'));
     expect(within(dialog).getByRole('textbox', { name: '回覆' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Resolve' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('group', { name: '標籤' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: '標記為已解決' })).toBeInTheDocument();
     expect(within(dialog).getAllByRole('button', { name: '留言選項' })).toHaveLength(2);
   });
 
@@ -127,27 +133,25 @@ describe('ThreadPopover', () => {
     expect(a.onDeleteComment).toHaveBeenCalledWith(expect.objectContaining({ id: 't12' }), 'c2');
   });
 
-  it('reply, resolve and tag toggles call the actions', async () => {
+  it('reply and resolve call the actions', async () => {
     const user = userEvent.setup();
     const a = actions();
     render(<Harness a={a} />);
     await user.type(await screen.findByRole('textbox', { name: '回覆' }), 'thanks');
     await user.click(screen.getByRole('button', { name: '回覆' }));
     expect(a.onReply).toHaveBeenCalledWith(expect.objectContaining({ id: 't12' }), 'thanks');
-    await user.click(screen.getByRole('button', { name: 'Resolve' }));
+    await user.click(screen.getByRole('button', { name: '標記為已解決' }));
     expect(a.onSetStatus).toHaveBeenCalledWith(expect.anything(), 'resolved');
-    await user.click(screen.getByRole('button', { name: 'Bug' }));
-    expect(a.onSetTags).toHaveBeenCalledWith(expect.anything(), ['bug']);
   });
 
   it('viewer role: no reply box, no mutations', async () => {
     render(<Harness actor={{ me: null, role: 'viewer' }} />);
     await screen.findByRole('dialog');
     expect(screen.queryByRole('textbox', { name: '回覆' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Resolve' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '標記為已解決' })).toBeDisabled();
   });
 
-  it('is hidden (but mounted) while the pin is out of view', () => {
+  it('is hidden (but mounted) while the markup is out of view', () => {
     function H() {
       return (
         <ThreadPopover
@@ -156,6 +160,8 @@ describe('ThreadPopover', () => {
           hidden
           actor={{ me: alice, role: 'owner' }}
           actions={actions()}
+          canDelete={false}
+          onDeleteMarkup={vi.fn()}
           onClose={vi.fn()}
         />
       );
@@ -184,5 +190,44 @@ describe('ThreadPopover', () => {
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('textbox', { name: '編輯留言' })).toBeNull();
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('a markup without comments shows the 新增說明 composer', async () => {
+    const user = userEvent.setup();
+    const a = actions();
+    render(<Harness a={a} thread={makeThread(1, { number: null, comments: [] })} />);
+    const dialog = await screen.findByRole('dialog', { name: '標記' });
+    const box = within(dialog).getByRole('textbox', { name: '新增說明' });
+    await user.type(box, 'note');
+    await user.click(within(dialog).getByRole('button', { name: '送出' }));
+    expect(a.onReply).toHaveBeenCalledWith(expect.objectContaining({ id: 't1' }), 'note');
+  });
+
+  it('deleting a markup with comments needs two clicks; without comments one', async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    const { unmount } = render(<Harness canDelete onDeleteMarkup={onDelete} />);
+    await user.click(await screen.findByRole('button', { name: '刪除標記' }));
+    expect(onDelete).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: '確定刪除（含 2 則留言）' }));
+    expect(onDelete).toHaveBeenCalledTimes(1);
+    unmount();
+
+    const onDelete2 = vi.fn();
+    render(
+      <Harness
+        canDelete
+        onDeleteMarkup={onDelete2}
+        thread={makeThread(3, { number: null, comments: [] })}
+      />,
+    );
+    await user.click(await screen.findByRole('button', { name: '刪除標記' }));
+    expect(onDelete2).toHaveBeenCalledTimes(1);
+  });
+
+  it('no delete button without canDelete', async () => {
+    render(<Harness />);
+    await screen.findByRole('dialog');
+    expect(screen.queryByRole('button', { name: '刪除標記' })).toBeNull();
   });
 });

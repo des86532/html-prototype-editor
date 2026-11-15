@@ -5,14 +5,13 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./schema/annotations.v1.json": "./schema/annotations.v1.json"
+    "./schema/annotations.v2.json": "./schema/annotations.v2.json"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@hpe/shared": "workspace:*",
-    "fflate": "^0.8.3",
     "htmlparser2": "^12.0.0",
     "parse5": "^8.1.1"
   },

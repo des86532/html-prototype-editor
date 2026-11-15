@@ -1,18 +1,31 @@
 import { useEffect, useRef } from 'react';
+import type { MarkupTool } from '@hpe/shared';
+import type { ViewerMode } from '@/state/uiStore';
 
 export interface ShortcutContext {
-  canComment: boolean;
-  /** 畫面上有 pin 的討論串（依編號排序），J/K 在其中移動 */
+  canMarkup: boolean;
+  mode: ViewerMode;
+  /** 畫面上有編號的標記（依編號排序），J/K 在其中移動 */
   navigableIds: readonly string[];
-  openId: string | null;
-  hasDraft: boolean;
+  selectedId: string | null;
   toggleMode: () => void;
-  toggleShowComments: () => void;
-  /** Esc：捨棄草稿，或關閉卡片 */
-  escape: () => void;
-  openThread: (id: string) => void;
-  toggleResolveOpen: () => void;
+  toggleShowMarkups: () => void;
+  /** Esc：先取消選取，沒有選取時離開標記模式；回傳是否有處理 */
+  escape: () => boolean;
+  select: (id: string) => void;
+  setTool: (tool: MarkupTool | 'select') => void;
+  deleteSelected: () => void;
+  undo: () => void;
 }
+
+const TOOL_KEYS: Record<string, MarkupTool | 'select'> = {
+  v: 'select',
+  r: 'rect',
+  a: 'arrow',
+  p: 'pen',
+  h: 'highlighter',
+  t: 'text',
+};
 
 export function isEditableTarget(t: EventTarget | null): boolean {
   if (!(t instanceof HTMLElement)) return false;
@@ -26,38 +39,48 @@ export function handleShortcut(
   e: Pick<KeyboardEvent, 'key' | 'shiftKey' | 'ctrlKey' | 'metaKey' | 'altKey' | 'target'>,
   ctx: ShortcutContext,
 ): boolean {
-  if (e.ctrlKey || e.metaKey || e.altKey) return false;
   if (isEditableTarget(e.target)) return false;
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (e.ctrlKey || e.metaKey) {
+    if (key === 'z' && !e.shiftKey && !e.altKey && ctx.canMarkup) {
+      ctx.undo();
+      return true;
+    }
+    return false;
+  }
+  if (e.altKey) return false;
   switch (key) {
     case 'c':
-      if (e.shiftKey) ctx.toggleShowComments();
-      else if (ctx.canComment) ctx.toggleMode();
+      if (e.shiftKey) ctx.toggleShowMarkups();
+      else if (ctx.canMarkup) ctx.toggleMode();
       else return false;
       return true;
     case 'Escape':
-      if (!ctx.hasDraft && ctx.openId === null) return false;
-      ctx.escape();
-      return true;
+      return ctx.escape();
     case 'j':
     case 'k': {
       if (ctx.navigableIds.length === 0) return false;
       const ids = ctx.navigableIds;
-      const i = ctx.openId === null ? -1 : ids.indexOf(ctx.openId);
+      const i = ctx.selectedId === null ? -1 : ids.indexOf(ctx.selectedId);
       const next =
         key === 'j'
           ? ids[i === -1 ? 0 : Math.min(ids.length - 1, i + 1)]
           : ids[i === -1 ? ids.length - 1 : Math.max(0, i - 1)];
       if (next === undefined) return false;
-      ctx.openThread(next);
+      ctx.select(next);
       return true;
     }
-    case 'r':
-      if (!ctx.canComment || ctx.openId === null) return false;
-      ctx.toggleResolveOpen();
+    case 'Delete':
+    case 'Backspace':
+      if (ctx.selectedId === null) return false;
+      ctx.deleteSelected();
       return true;
-    default:
-      return false;
+    default: {
+      const tool = ctx.mode === 'markup' && !e.shiftKey ? TOOL_KEYS[key] : undefined;
+      if (!tool) return false;
+      ctx.setTool(tool);
+      return true;
+    }
   }
 }
 

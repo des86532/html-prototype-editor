@@ -58,16 +58,6 @@ export async function waitForViewerReady(page: Page): Promise<void> {
   await expect(viewerHandles(page).frame.locator('.nav')).toHaveCSS('display', 'flex');
 }
 
-/** pin 錨點（overlay 座標）轉成頁面座標。 */
-export async function pinPagePoint(page: Page, testId: string): Promise<{ x: number; y: number }> {
-  const pin = page.getByTestId(testId);
-  const wrapper = await page.getByTestId('sandbox-frame-wrapper').boundingBox();
-  if (!wrapper) throw new Error('wrapper not visible');
-  const x = Number(await pin.getAttribute('data-x'));
-  const y = Number(await pin.getAttribute('data-y'));
-  return { x: wrapper.x + x, y: wrapper.y + y };
-}
-
 export async function frameWindow(page: Page) {
   const handle = await page.locator('iframe[title^="Prototype"]').elementHandle();
   const frame = await handle?.contentFrame();
@@ -75,13 +65,57 @@ export async function frameWindow(page: Page) {
   return frame;
 }
 
-/** 進入 Comment 模式並等 agent 真的切換完成（hover 高亮框出現代表 setMode 已生效）。 */
-export async function enterCommentMode(page: Page, probe: { x: number; y: number }): Promise<void> {
-  await page.getByRole('button', { name: /^Comment/ }).click();
-  // 跨 process 的 iframe 在剛切換模式時可能丟掉第一個 mousemove；使用者會持續移動滑鼠，測試也一樣。
-  let i = 0;
-  await expect(async () => {
-    await page.mouse.move(probe.x + (i++ % 3), probe.y);
-    await expect(page.getByTestId('hover-highlight')).toBeVisible({ timeout: 300 });
-  }).toPass({ timeout: 10_000 });
+/** 進入標記模式：點「標記（C）」並等浮動工具盤出現。 */
+export async function enterMarkupMode(page: Page): Promise<void> {
+  await page.getByRole('button', { name: /^標記（C）/ }).click();
+  await expect(page.getByRole('toolbar', { name: '標記工具' })).toBeVisible();
+  await expect(page.getByTestId('markup-canvas')).toBeVisible();
+}
+
+/** 標記畫布目前的縮放與捲動（從 svg 的 width／viewBox 推算，不依賴 viewer 內部狀態）。 */
+export async function canvasMetrics(page: Page): Promise<{
+  box: { x: number; y: number; width: number; height: number };
+  scale: number;
+  scrollX: number;
+  scrollY: number;
+}> {
+  const svg = page.getByTestId('markup-svg');
+  const box = await page.getByTestId('markup-canvas').boundingBox();
+  if (!box) throw new Error('markup canvas not visible');
+  const width = Number(await svg.getAttribute('width'));
+  const vb = ((await svg.getAttribute('viewBox')) ?? '0 0 1 1').split(/\s+/).map(Number);
+  return { box, scale: width / vb[2]!, scrollX: vb[0]!, scrollY: vb[1]! };
+}
+
+/** 頁面座標 → 螢幕座標（以標記畫布為準）。 */
+export async function pageToScreen(
+  page: Page,
+  p: { x: number; y: number },
+): Promise<{ x: number; y: number }> {
+  const m = await canvasMetrics(page);
+  return { x: m.box.x + (p.x - m.scrollX) * m.scale, y: m.box.y + (p.y - m.scrollY) * m.scale };
+}
+
+/** 在標記畫布上用目前工具從 from 拖到 to（頁面座標；要在標記模式下呼叫）。 */
+export async function dragOnCanvas(
+  page: Page,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+): Promise<void> {
+  const a = await pageToScreen(page, from);
+  const b = await pageToScreen(page, to);
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.mouse.move(b.x, b.y, { steps: 5 });
+  await page.mouse.up();
+}
+
+/** 預設工具就是矩形：在標記畫布上畫一個矩形。 */
+export async function drawRect(
+  page: Page,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+): Promise<void> {
+  await page.getByRole('button', { name: /^矩形（R）/ }).click();
+  await dragOnCanvas(page, from, to);
 }

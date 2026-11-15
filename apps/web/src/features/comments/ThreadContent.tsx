@@ -1,12 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { COMMENT_LIMITS, type Comment, type Thread, type ThreadTag } from '@hpe/shared';
+import type { Comment, Thread } from '@hpe/shared';
 import { SafeMarkdown } from '@/lib/SafeMarkdown';
-import { TAG_LABELS, formatRelativeTime } from '@/lib/format';
+import { formatRelativeTime } from '@/lib/format';
 import { Composer } from './Composer';
 import { canComment, canDeleteComment, canEditComment, type ThreadActor } from './permissions';
 import type { ThreadActions } from './types';
-
-const TAGS = Object.keys(TAG_LABELS) as ThreadTag[];
 
 export interface ThreadContentProps {
   thread: Thread;
@@ -226,7 +224,7 @@ function CommentRow({
 }
 
 /**
- * 卡片（ThreadPopover）與留言面板共用的討論串內容。順序：完整討論串、回覆輸入框、Resolve 按鈕、標籤。
+ * 卡片（ThreadPopover）用的討論串內容。順序：完整討論串、回覆輸入框、解決按鈕。
  * 作者名稱與留言內容都以文字節點／SafeMarkdown 渲染。
  */
 export function ThreadContent({ thread, actor, actions, autoFocusReply }: ThreadContentProps) {
@@ -241,13 +239,6 @@ export function ThreadContent({ thread, actor, actions, autoFocusReply }: Thread
     } catch (e) {
       setError(e instanceof Error ? e.message : '操作失敗');
     }
-  };
-
-  const toggleTag = (tag: ThreadTag) => {
-    const has = thread.tags.includes(tag);
-    if (!has && thread.tags.length >= COMMENT_LIMITS.maxTagsPerThread) return;
-    const next = has ? thread.tags.filter((t) => t !== tag) : [...thread.tags, tag];
-    void guard(() => actions.onSetTags(thread, next));
   };
 
   return (
@@ -280,30 +271,8 @@ export function ThreadContent({ thread, actor, actions, autoFocusReply }: Thread
           }
           className="btn btn-secondary btn-sm"
         >
-          {resolved ? '重新開啟' : 'Resolve'}
+          {resolved ? '重新開啟' : '標記為已解決'}
         </button>
-        <div role="group" aria-label="標籤" className="flex flex-wrap gap-1">
-          {TAGS.map((tag) => {
-            const on = thread.tags.includes(tag);
-            if (!writable && !on) return null;
-            return (
-              <button
-                key={tag}
-                type="button"
-                aria-pressed={on}
-                disabled={!writable}
-                onClick={() => toggleTag(tag)}
-                className={`rounded-full border px-2 py-0.5 text-xs ${
-                  on
-                    ? 'border-accent bg-accent-soft text-accent'
-                    : 'border-line text-ink-2 hover:bg-paper'
-                }`}
-              >
-                {TAG_LABELS[tag]}
-              </button>
-            );
-          })}
-        </div>
       </div>
       {error && (
         <p role="alert" className="text-xs text-danger">

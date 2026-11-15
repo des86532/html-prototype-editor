@@ -1,20 +1,13 @@
-import type { Anchor, Author, Comment, Thread } from '@hpe/shared';
+import type { Markup, Author, Comment, Thread } from '@hpe/shared';
 
 export const alice: Author = { kind: 'user', userId: 'u1', name: 'Alice Chen' };
 export const bob: Author = { kind: 'guest', guestId: 'g1', name: 'Bob' };
 
-export function makeAnchor(over: Partial<Anchor> = {}): Anchor {
+export function makeMarkup(over: Partial<Markup> = {}): Markup {
   return {
     pageId: 'index.html',
-    kind: 'element',
-    viewport: { width: 1440, height: 900, dpr: 1 },
-    selectors: {
-      css: '#btn',
-      fingerprint: { tag: 'button', classes: [], textHash: 'h', siblingIndex: 0, depth: 3 },
-      elementOffset: { x: 0.5, y: 0.5 },
-    },
-    fallback: { x: 10, y: 10, w: 100, h: 40 },
-    snapshot: { tag: 'button', text: 'Buy' },
+    viewport: { width: 1440, height: 900 },
+    shape: { kind: 'rect', x: 10, y: 10, w: 100, h: 40, color: '#e5484d', stroke: 4 },
     ...over,
   };
 }
@@ -29,9 +22,9 @@ export function makeThread(n: number, over: Partial<Thread> = {}): Thread {
     id,
     versionId: 'v1',
     number: n,
-    anchor: makeAnchor(),
+    markup: makeMarkup(),
     status: 'open',
-    tags: [],
+    rev: 1,
     createdBy: alice,
     createdAt: '2026-01-01T00:00:00.000Z',
     comments: [makeComment(`c${n}`, id, alice, `comment ${n}`)],

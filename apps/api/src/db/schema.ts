@@ -9,14 +9,7 @@ import {
   unique,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import type {
-  Anchor,
-  AnchorStatus,
-  Author,
-  PageInfo,
-  SecurityReport,
-  ThreadTag,
-} from '@hpe/shared';
+import type { Author, Markup, PageInfo, SecurityReport } from '@hpe/shared';
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 
@@ -94,20 +87,17 @@ export const threads = pgTable(
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id, { onDelete: 'cascade' }),
-    number: integer('number').notNull(),
-    anchor: jsonb('anchor').$type<Anchor>().notNull(),
+    /** 第一則說明送出時才編號；無說明的標記為 null（unique 對 NULL 不衝突） */
+    number: integer('number'),
+    markup: jsonb('markup').$type<Markup>().notNull(),
     status: text('status').$type<'open' | 'resolved'>().notNull().default('open'),
-    tags: jsonb('tags').$type<ThreadTag[]>().notNull().default([]),
     createdBy: jsonb('created_by').$type<Author>().notNull(),
     /** userId 或 guestId，用於權限比對 */
     createdById: text('created_by_id').notNull(),
     createdAt: ts('created_at').notNull().defaultNow(),
     resolvedAt: ts('resolved_at'),
-    carriedFrom: jsonb('carried_from').$type<{
-      threadId: string;
-      versionId: string;
-      resolution: AnchorStatus;
-    } | null>(),
+    /** 每次寫入（含留言）遞增，client 用來避免舊快照蓋掉新資料 */
+    rev: integer('rev').notNull().default(1),
   },
   (t) => [
     unique('threads_project_number_uq').on(t.projectId, t.number),

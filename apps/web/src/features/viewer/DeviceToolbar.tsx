@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { DEVICE_PRESETS, type Mode, type PageInfo } from '@hpe/shared';
-import type { DeviceState } from '@/state/uiStore';
+import { DEVICE_PRESETS, type PageInfo } from '@hpe/shared';
+import type { DeviceState, ViewerMode } from '@/state/uiStore';
 
 export interface DeviceToolbarProps {
   /** 給收合按鈕的 aria-controls */
@@ -10,17 +10,17 @@ export interface DeviceToolbarProps {
   fit: boolean;
   onFit: (v: boolean) => void;
   scale: number;
-  mode: Mode;
-  onMode: (m: Mode) => void;
-  /** viewer 角色或尚未留名：Comment 模式停用 */
-  canComment: boolean;
-  showComments: boolean;
-  onShowComments: (v: boolean) => void;
+  mode: ViewerMode;
+  onMode: (m: ViewerMode) => void;
+  /** viewer 角色或尚未留名：標記模式停用 */
+  canMarkup: boolean;
+  showMarkups: boolean;
+  onShowMarkups: (v: boolean) => void;
   showResolved: boolean;
   onShowResolved: (v: boolean) => void;
   panelOpen: boolean;
   onPanelOpen: (v: boolean) => void;
-  threadCount: number;
+  markupCount: number;
   pages: readonly PageInfo[];
   /** agent 回報的目前頁面 */
   pageId: string | null;
@@ -160,13 +160,13 @@ export function DeviceToolbar(p: DeviceToolbarProps) {
         </button>
         <button
           type="button"
-          aria-pressed={p.mode === 'comment'}
-          disabled={!p.canComment}
-          title={p.canComment ? '留言模式（C）' : '你沒有留言權限'}
+          aria-pressed={p.mode === 'markup'}
+          disabled={!p.canMarkup}
+          title={p.canMarkup ? '標記模式（C）' : '你沒有標記權限'}
           data-accent=""
-          onClick={() => p.onMode('comment')}
+          onClick={() => p.onMode('markup')}
         >
-          Comment（C）
+          標記（C）
         </button>
       </div>
 
@@ -175,12 +175,12 @@ export function DeviceToolbar(p: DeviceToolbarProps) {
       <div role="group" aria-label="顯示" className="flex items-center gap-1.5">
         <button
           type="button"
-          aria-pressed={p.showComments}
-          title="顯示留言（Shift+C）"
+          aria-pressed={p.showMarkups}
+          title="顯示標記（Shift+C）"
           className={toggle}
-          onClick={() => p.onShowComments(!p.showComments)}
+          onClick={() => p.onShowMarkups(!p.showMarkups)}
         >
-          顯示留言
+          顯示標記
         </button>
         <button
           type="button"
@@ -198,7 +198,7 @@ export function DeviceToolbar(p: DeviceToolbarProps) {
           onClick={() => p.onPanelOpen(!p.panelOpen)}
         >
           <span>
-            留言面板（<span className="font-mono">{p.threadCount}</span>）
+            標記面板（<span className="font-mono">{p.markupCount}</span>）
           </span>
         </button>
       </div>

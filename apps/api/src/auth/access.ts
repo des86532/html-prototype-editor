@@ -5,6 +5,7 @@ import type { AppContext } from '../context.js';
 import { comments, projects, prototypeVersions, threads } from '../db/schema.js';
 import type { CommentRow, ProjectRow, ThreadRow, VersionRow } from '../dto.js';
 import { authorId } from '../dto.js';
+import { sha256Hex } from '../ids.js';
 import { authorOf, getPrincipal, type Principal } from './principal.js';
 import type { Author } from '@hpe/shared';
 
@@ -23,7 +24,15 @@ export async function accessProject(
   req: FastifyRequest,
   projectId: string,
 ): Promise<ProjectAccess> {
-  const principal = await getPrincipal(ctx, req);
+  return projectAccessFor(ctx, await getPrincipal(ctx, req), projectId);
+}
+
+/** `accessProject` 中依 principal 判斷的部分（WebSocket 沒有 FastifyRequest 身分快取時也能用）。 */
+export async function projectAccessFor(
+  ctx: AppContext,
+  principal: Principal,
+  projectId: string,
+): Promise<ProjectAccess> {
   if (principal.kind === 'anonymous') throw new AppError('UNAUTHENTICATED', '請先登入');
   if (principal.kind === 'share' && principal.link.projectId !== projectId) {
     throw new AppError('NOT_FOUND');
@@ -72,11 +81,23 @@ export async function accessVersion(
   req: FastifyRequest,
   versionId: string,
 ): Promise<VersionAccess> {
-  const principal = await getPrincipal(ctx, req);
+  return accessVersionFor(ctx, await getPrincipal(ctx, req), versionId);
+}
+
+export async function accessVersionFor(
+  ctx: AppContext,
+  principal: Principal,
+  versionId: string,
+): Promise<VersionAccess> {
   if (principal.kind === 'anonymous') throw new AppError('UNAUTHENTICATED', '請先登入');
   const version = await loadVersion(ctx, versionId);
-  const access = await accessProject(ctx, req, version.projectId);
+  const access = await projectAccessFor(ctx, principal, version.projectId);
   return { ...access, version };
+}
+
+/** session cookie 的雜湊（sessions.hash）；hub 以它找出登出的連線。 */
+export function sessionHashOf(cookie: string): string {
+  return sha256Hex(cookie);
 }
 
 export async function accessOwnedVersion(

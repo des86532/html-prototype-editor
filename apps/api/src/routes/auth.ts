@@ -5,12 +5,14 @@ import {
   OAUTH_COOKIE,
   SESSION_COOKIE,
   type MeResponse,
+  LIVE_CLOSE,
 } from '@hpe/shared';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { writeAudit } from '../audit.js';
 import { pkceChallenge, type GoogleIdentity } from '../auth/google.js';
+import { sessionHashOf } from '../auth/access.js';
 import { getPrincipal } from '../auth/principal.js';
 import type { AppContext } from '../context.js';
 import { sessions, users } from '../db/schema.js';
@@ -189,7 +191,11 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext, limite
 
   app.post(API_ROUTES.logout.path, async (req, reply) => {
     const cookie = req.cookies[SESSION_COOKIE];
-    if (cookie) await ctx.db.delete(sessions).where(eq(sessions.hash, sha256Hex(cookie)));
+    if (cookie) {
+      await ctx.db.delete(sessions).where(eq(sessions.hash, sha256Hex(cookie)));
+      const hash = sessionHashOf(cookie);
+      ctx.hub.closeWhere((c) => c.sessionHash === hash, LIVE_CLOSE.unauthenticated, 'logged out');
+    }
     void reply.clearCookie(SESSION_COOKIE, {
       httpOnly: true,
       sameSite: 'lax',

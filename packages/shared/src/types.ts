@@ -1,7 +1,6 @@
 import type { z } from 'zod';
+import type { MARKUP_COLORS, MARKUP_STROKES } from './limits.js';
 import type {
-  AnchorSchema,
-  AnchorStatusSchema,
   AuthorSchema,
   CommentSchema,
   CreateCommentBodySchema,
@@ -12,19 +11,18 @@ import type {
   FrameToParentSchema,
   GuestIdentityBodySchema,
   IdSchema,
-  ModeSchema,
+  MarkupSchema,
+  MarkupShapeSchema,
+  MarkupToolSchema,
   PageInfoSchema,
   ParentToFrameSchema,
   PrototypeVersionSchema,
   ProjectSchema,
-  RectSchema,
-  ResolvedAnchorSchema,
   RoleSchema,
   SecurityReportSchema,
   ShareLinkSchema,
   ThreadSchema,
   ThreadStatusSchema,
-  ThreadTagSchema,
   UpdateCommentBodySchema,
   UpdateThreadBodySchema,
   UpdateVersionBodySchema,
@@ -34,13 +32,12 @@ import type {
 export type Id = z.infer<typeof IdSchema>; // ULID
 export type Role = z.infer<typeof RoleSchema>;
 export type ThreadStatus = z.infer<typeof ThreadStatusSchema>;
-export type ThreadTag = z.infer<typeof ThreadTagSchema>;
-export type AnchorStatus = z.infer<typeof AnchorStatusSchema>;
-export type Mode = z.infer<typeof ModeSchema>;
 
-export type Rect = z.infer<typeof RectSchema>;
-export type Anchor = z.infer<typeof AnchorSchema>;
-export type ResolvedAnchor = z.infer<typeof ResolvedAnchorSchema>;
+export type Markup = z.infer<typeof MarkupSchema>;
+export type MarkupShape = z.infer<typeof MarkupShapeSchema>;
+export type MarkupTool = z.infer<typeof MarkupToolSchema>;
+export type MarkupColor = (typeof MARKUP_COLORS)[number];
+export type MarkupStroke = (typeof MARKUP_STROKES)[number];
 
 export type Author = z.infer<typeof AuthorSchema>;
 export type Comment = z.infer<typeof CommentSchema>;
@@ -79,23 +76,3 @@ export interface AssetManifestEntry {
   size: number;
   mime: string;
 }
-
-/** 留言面板／畫面 pin 共用的篩選條件（規格：狀態、頁面、寬度、作者、標籤）。 */
-export interface ThreadFilters {
-  status: ThreadStatus | 'all';
-  /** bundle 內頁面路徑；null = 全部 */
-  pageId: string | null;
-  /** 「只看目前寬度」：以 anchor.viewport.width 比對；null = 全部 */
-  width: number | null;
-  /** 作者 id（userId 或 guestId）；null = 全部 */
-  authorId: string | null;
-  tag: ThreadTag | null;
-}
-
-export const DEFAULT_THREAD_FILTERS: ThreadFilters = {
-  status: 'all',
-  pageId: null,
-  width: null,
-  authorId: null,
-  tag: null,
-};

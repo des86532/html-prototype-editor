@@ -1,5 +1,5 @@
 import type { Comment, Thread } from '@hpe/shared';
-import { bestSelector, breakpointLabel, elementLabel, exportedAt, groupByPage } from './common.js';
+import { breakpointLabel, exportedAt, groupByPage, markupBox, shapeLabel } from './common.js';
 import type { ExportInput } from './types.js';
 
 // eslint-disable-next-line no-control-regex
@@ -41,7 +41,7 @@ function formatTime(iso: string): string {
 }
 
 function renderComment(c: Comment, index: number): string[] {
-  const label = index === 0 ? '留言' : `回覆 ${index}`;
+  const label = index === 0 ? '說明' : `回覆 ${index}`;
   return [
     `> **${escapeMarkdown(c.author.name)}** · ${label} · ${formatTime(c.createdAt)}`,
     '>',
@@ -50,16 +50,16 @@ function renderComment(c: Comment, index: number): string[] {
 }
 
 function renderThread(t: Thread): string[] {
+  const box = markupBox(t.markup);
   const lines: string[] = [`### #${t.number}`, ''];
   lines.push(`- 作者：${escapeMarkdown(t.createdBy.name)}`);
   lines.push(`- 時間：${formatTime(t.createdAt)}`);
   lines.push(`- 狀態：${t.status === 'resolved' ? '已解決' : '未解決'}`);
   if (t.resolvedAt) lines.push(`- 解決時間：${formatTime(t.resolvedAt)}`);
-  if (t.tags.length > 0) lines.push(`- 標籤：${t.tags.map(escapeMarkdown).join(', ')}`);
-  lines.push(`- 元素：${escapeMarkdown(elementLabel(t))}`);
-  const sel = bestSelector(t);
-  if (sel) lines.push(`- Selector：${escapeMarkdown(sel)}`);
-  lines.push(`- Breakpoint：${escapeMarkdown(breakpointLabel(t))}`);
+  lines.push(
+    `- 標記：${escapeMarkdown(shapeLabel(t.markup.shape))}，位置 ${box.x},${box.y}、${box.w}×${box.h}（頁面座標）`,
+  );
+  lines.push(`- 寬度：${escapeMarkdown(breakpointLabel(t))}`);
   lines.push('');
   t.comments.forEach((c, i) => {
     lines.push(...renderComment(c, i), '');
@@ -67,13 +67,13 @@ function renderThread(t: Thread): string[] {
   return lines;
 }
 
-/** 依頁面分組的 Markdown；編號與 pin 一致。不輸出任何原始 HTML。 */
+/** 依頁面分組的 Markdown；只列附說明（有編號）的標記。不輸出任何原始 HTML。 */
 export function buildMarkdown(input: ExportInput): string {
   const { project, version, threads } = input;
   const out: string[] = [
-    `# ${escapeMarkdown(project.name)} v${version.number} 評論匯出`,
+    `# ${escapeMarkdown(project.name)} v${version.number} 標記匯出`,
     '',
-    `匯出時間：${formatTime(exportedAt(input))} · 討論串：${threads.length}`,
+    `匯出時間：${formatTime(exportedAt(input))} · 附說明的標記：${threads.filter((t) => t.number !== null).length} · 全部標記：${threads.length}`,
     '',
   ];
   for (const group of groupByPage(
@@ -81,7 +81,12 @@ export function buildMarkdown(input: ExportInput): string {
     version.pages.map((p) => p.path),
   )) {
     out.push(`## 頁面：${escapeMarkdown(group.page)}`, '');
-    for (const t of group.threads) out.push(...renderThread(t));
+    let bare = 0;
+    for (const t of group.threads) {
+      if (t.number === null) bare++;
+      else out.push(...renderThread(t));
+    }
+    if (bare > 0) out.push(`另有 ${bare} 個未附說明的標記。`, '');
   }
   return `${out
     .join('\n')

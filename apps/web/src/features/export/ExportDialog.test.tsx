@@ -21,7 +21,6 @@ function setup(stub: Record<string, unknown>) {
 
 const estimate = {
   htmlBytes: 25 * 1024 * 1024,
-  packageBytes: 2048,
   threadCount: 7,
   warnLargeHtml: true,
 };
@@ -31,15 +30,14 @@ describe('ExportDialog', () => {
 
   it('shows estimate and large-html warning', async () => {
     setup({ exportEstimate: vi.fn().mockResolvedValue(estimate) });
-    expect(await screen.findByText(/討論串數量：7/)).toBeInTheDocument();
+    expect(await screen.findByText(/標記數量：7/)).toBeInTheDocument();
     expect(screen.getByText(/25\.0 MB/)).toBeInTheDocument();
-    expect(screen.getByText(/2\.0 KB/)).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('單檔 HTML 預估超過 20 MB，開啟可能較慢');
   });
 
   it('no warning when small', async () => {
     setup({ exportEstimate: vi.fn().mockResolvedValue({ ...estimate, warnLargeHtml: false }) });
-    await screen.findByText(/討論串數量/);
+    await screen.findByText(/標記數量/);
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
@@ -53,10 +51,9 @@ describe('ExportDialog', () => {
     });
     await userEvent.click(screen.getByRole('radio', { name: 'Markdown' }));
     await userEvent.selectOptions(screen.getByLabelText('狀態'), 'open');
-    await userEvent.selectOptions(screen.getByLabelText('標籤'), 'bug');
     await userEvent.click(screen.getByRole('button', { name: '下載' }));
     await waitFor(() => expect(save).toHaveBeenCalledWith(blob, 'out.md'));
-    expect(exportVersion).toHaveBeenCalledWith('v1', 'markdown', { status: 'open', tag: 'bug' });
+    expect(exportVersion).toHaveBeenCalledWith('v1', 'markdown', { status: 'open' });
   });
 
   it('falls back to default filename and maps errors', async () => {
@@ -69,10 +66,10 @@ describe('ExportDialog', () => {
       exportEstimate: vi.fn().mockResolvedValue({ ...estimate, warnLargeHtml: false }),
       exportVersion,
     });
-    await userEvent.click(screen.getByRole('radio', { name: 'Review Package ZIP' }));
+    await userEvent.click(screen.getByRole('radio', { name: '單檔互動 HTML' }));
     await userEvent.click(screen.getByRole('button', { name: '下載' }));
-    await waitFor(() => expect(save).toHaveBeenCalledWith(expect.any(Blob), 'export-package.zip'));
-    expect(exportVersion).toHaveBeenCalledWith('v1', 'package', {});
+    await waitFor(() => expect(save).toHaveBeenCalledWith(expect.any(Blob), 'export-html.html'));
+    expect(exportVersion).toHaveBeenCalledWith('v1', 'html', {});
     await userEvent.click(screen.getByRole('button', { name: '下載' }));
     expect(await screen.findByText(/沒有權限/)).toBeInTheDocument();
   });

@@ -47,12 +47,18 @@ export async function loadShareLink(ctx: AppContext, token: string): Promise<Sha
   return link;
 }
 
-async function resolve(ctx: AppContext, req: FastifyRequest): Promise<Principal> {
-  const shareToken = header(req, API_HEADERS.shareToken);
+export interface Credentials {
+  shareToken?: string | undefined;
+  guestToken?: string | undefined;
+  sessionCookie?: string | undefined;
+}
+
+/** 有 shareToken 時一律以分享連結身分處理（權限較小）；否則看 session cookie。 */
+export async function resolvePrincipal(ctx: AppContext, creds: Credentials): Promise<Principal> {
+  const { shareToken, guestToken, sessionCookie } = creds;
   if (shareToken) {
     const link = await loadShareLink(ctx, shareToken);
     let guest: GuestIdentity | null = null;
-    const guestToken = header(req, API_HEADERS.guestToken);
     if (guestToken) {
       const claims = verifyGuestToken(guestToken, ctx.config.sessionSecret);
       if (claims && claims.pid === link.projectId)
@@ -61,19 +67,26 @@ async function resolve(ctx: AppContext, req: FastifyRequest): Promise<Principal>
     return { kind: 'share', link, role: link.role, guest };
   }
 
-  const cookie = req.cookies[SESSION_COOKIE];
-  if (cookie) {
+  if (sessionCookie) {
     const [row] = await ctx.db
       .select({ user: users, expiresAt: sessions.expiresAt })
       .from(sessions)
       .innerJoin(users, eq(users.id, sessions.userId))
-      .where(eq(sessions.hash, sha256Hex(cookie)))
+      .where(eq(sessions.hash, sha256Hex(sessionCookie)))
       .limit(1);
     if (row && row.expiresAt.getTime() > ctx.now().getTime()) {
       return { kind: 'user', user: row.user };
     }
   }
   return { kind: 'anonymous' };
+}
+
+function resolve(ctx: AppContext, req: FastifyRequest): Promise<Principal> {
+  return resolvePrincipal(ctx, {
+    shareToken: header(req, API_HEADERS.shareToken),
+    guestToken: header(req, API_HEADERS.guestToken),
+    sessionCookie: req.cookies[SESSION_COOKIE],
+  });
 }
 
 /** 同一個 request 只解析一次。有 x-share-token 時一律以分享連結身分處理（權限較小）。 */

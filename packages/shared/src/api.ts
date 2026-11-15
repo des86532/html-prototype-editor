@@ -60,10 +60,6 @@ export interface ThreadResponse {
 export interface OkResponse {
   ok: true;
 }
-export interface DeleteCommentResponse {
-  /** 刪除最後一則留言時整個 thread 一併刪除，回傳 null */
-  thread: Thread | null;
-}
 export interface ShareLinksResponse {
   links: ShareLink[];
 }
@@ -91,24 +87,16 @@ export interface InternalContentResponse {
   assets: AssetManifestEntry[];
 }
 
-export type ExportFormat = 'json' | 'markdown' | 'csv' | 'html' | 'package';
-export const EXPORT_FORMATS: readonly ExportFormat[] = [
-  'json',
-  'markdown',
-  'csv',
-  'html',
-  'package',
-];
+export type ExportFormat = 'json' | 'markdown' | 'html';
+export const EXPORT_FORMATS: readonly ExportFormat[] = ['json', 'markdown', 'html'];
 
 export interface ExportQuery {
   status?: 'open' | 'resolved';
-  tag?: string;
 }
 
 export interface ExportEstimateResponse {
   /** 預估單檔 HTML 位元組（含 base64 膨脹） */
   htmlBytes: number;
-  packageBytes: number;
   threadCount: number;
   warnLargeHtml: boolean;
 }
@@ -125,11 +113,11 @@ export const API_ROUTES = {
   getProject: { method: 'GET', path: '/projects/:id' },
   deleteProject: { method: 'DELETE', path: '/projects/:id' },
   createVersion: { method: 'POST', path: '/projects/:id/versions' },
-  importPackage: { method: 'POST', path: '/projects/:id/import-package' },
   getVersion: { method: 'GET', path: '/versions/:id' },
   updateVersion: { method: 'PATCH', path: '/versions/:id' },
   deleteVersion: { method: 'DELETE', path: '/versions/:id' },
   rotateContentKey: { method: 'POST', path: '/versions/:id/rotate-content-key' },
+  liveVersion: { method: 'GET', path: '/versions/:id/live' },
   listThreads: { method: 'GET', path: '/versions/:id/threads' },
   createThread: { method: 'POST', path: '/versions/:id/threads' },
   updateThread: { method: 'PATCH', path: '/threads/:id' },

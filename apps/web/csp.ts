@@ -17,7 +17,7 @@ export function buildAppCsp({ contentBaseDomain, contentScheme, apiOrigin }: App
     "style-src 'self'",
     "img-src 'self' data: blob:",
     `frame-src ${contentScheme}://*.${contentBaseDomain}`,
-    `connect-src 'self'${apiOrigin ? ` ${apiOrigin}` : ''}`,
+    `connect-src 'self'${apiOrigin ? ` ${apiOrigin} ${apiOrigin.replace(/^http/, 'ws')}` : ''}`,
     "object-src 'none'",
     "base-uri 'none'",
     "frame-ancestors 'none'",

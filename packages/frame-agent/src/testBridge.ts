@@ -1,7 +1,7 @@
 import { FrameToParentSchema, type FrameToParent, type ParentToFrame } from '@hpe/shared';
 import type { AgentBridge } from './bridge-types.js';
 
-/** picker／geometry 測試用的假 bridge：記錄送出的訊息（並用共用 zod schema 驗證），可手動投遞 parent 訊息。 */
+/** viewport 等模組測試用的假 bridge：記錄送出的訊息（並用共用 zod schema 驗證），可手動投遞 parent 訊息。 */
 export function fakeBridge(pageId = 'index.html') {
   const sent: FrameToParent[] = [];
   const subs = new Set<(m: ParentToFrame) => void>();

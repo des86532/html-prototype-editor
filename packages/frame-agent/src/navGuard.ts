@@ -40,7 +40,9 @@ export function classifyLink(
     try {
       const url = new URL(raw, `${BUNDLE_ORIGIN}/${dir}`);
       if (url.origin !== BUNDLE_ORIGIN) return { action: 'block' };
-      const path = decodeURIComponent(url.pathname).replace(/^\/+/, '');
+      let path = decodeURIComponent(url.pathname).replace(/^\/+/, '');
+      // 目錄連結（`/orders/`、`/`）對應該目錄的 index.html
+      if (url.pathname.endsWith('/')) path = `${path}index.html`;
       return path ? { action: 'navigate', pageId: path } : { action: 'block' };
     } catch {
       return { action: 'block' };

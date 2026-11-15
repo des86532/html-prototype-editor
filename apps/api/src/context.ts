@@ -1,6 +1,7 @@
 import type { Config } from './config.js';
 import type { Db } from './db/client.js';
 import type { GoogleOAuth } from './auth/google.js';
+import type { LiveHub } from './live/hub.js';
 import type { StorageAdapter } from './storage/types.js';
 
 export interface AppDeps {
@@ -15,4 +16,5 @@ export interface AppDeps {
 
 export interface AppContext extends AppDeps {
   now: () => Date;
+  hub: LiveHub;
 }

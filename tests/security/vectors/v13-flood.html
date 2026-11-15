@@ -10,7 +10,7 @@
   var start = performance.now();
   var id = setInterval(function () {
     for (var i = 0; i < 1000; i++) {
-      parent.postMessage({ v: 1, type: 'hover', rect: { x: i, y: 0, w: 1, h: 1 }, label: 'flood' }, '*');
+      parent.postMessage({ v: 1, type: 'scroll', x: i, y: 0, docW: 1, docH: 1, vw: 1, vh: 1 }, '*');
       sent++;
     }
     if (performance.now() - start > 3000) {

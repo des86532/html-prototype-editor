@@ -1,55 +1,54 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { makeAnchor } from '@/test-utils/fixtures';
 import { useUiStore } from './uiStore';
 
-const draft = (x: number) => ({ anchor: makeAnchor(), rect: { x, y: 0, w: 1, h: 1 } });
 const s = () => useUiStore.getState();
 
 beforeEach(() => s().reset());
 
 describe('uiStore', () => {
-  it('defaults: interact mode, comments shown, resolved hidden, panel collapsed', () => {
+  it('defaults: interact mode, rect tool, markups shown, resolved hidden, panel collapsed', () => {
     expect(s()).toMatchObject({
       mode: 'interact',
-      showComments: true,
+      tool: 'rect',
+      color: '#e5484d',
+      stroke: 4,
+      showMarkups: true,
       showResolved: false,
       panelOpen: false,
-      openThreadId: null,
-      draft: null,
+      selectedId: null,
     });
   });
 
-  it('at most one card: a draft closes the open card and opening a card drops the draft', () => {
-    s().openThread('a');
-    s().setDraft(draft(1));
-    expect(s().openThreadId).toBeNull();
-    s().openThread('b');
-    expect(s().draft).toBeNull();
-    expect(s().openThreadId).toBe('b');
+  it('select keeps a single selection; leaving markup mode keeps it', () => {
+    s().setMode('markup');
+    s().select('a');
+    s().select('b');
+    expect(s().selectedId).toBe('b');
+    s().toggleMode();
+    expect(s()).toMatchObject({ mode: 'interact', selectedId: 'b' });
   });
 
-  it('a new draft replaces the old one', () => {
-    s().setDraft(draft(1));
-    s().setDraft(draft(2));
-    expect(s().draft?.rect.x).toBe(2);
+  it('hiding markups returns to interact mode and clears the selection', () => {
+    s().setMode('markup');
+    s().select('a');
+    s().setShowMarkups(false);
+    expect(s()).toMatchObject({ showMarkups: false, mode: 'interact', selectedId: null });
+    s().setShowMarkups(true);
+    expect(s().showMarkups).toBe(true);
+    s().setMode('markup');
+    s().select('a');
+    s().toggleShowMarkups();
+    expect(s()).toMatchObject({ showMarkups: false, mode: 'interact', selectedId: null });
+    s().toggleShowMarkups();
+    expect(s().showMarkups).toBe(true);
   });
 
-  it('leaving comment mode or hiding comments discards drafts and closes cards', () => {
-    s().setMode('comment');
-    s().setDraft(draft(1));
-    s().setMode('interact');
-    expect(s().draft).toBeNull();
-    s().openThread('a');
-    s().toggleShowComments();
-    expect(s()).toMatchObject({ showComments: false, openThreadId: null });
-    s().toggleShowComments();
-    expect(s().showComments).toBe(true);
-  });
-
-  it('filters patch merges', () => {
-    s().setFilters({ tag: 'bug' });
-    s().setFilters({ status: 'open' });
-    expect(s().filters).toMatchObject({ tag: 'bug', status: 'open', pageId: null });
+  it('reset restores tool, color and stroke', () => {
+    s().setTool('pen');
+    s().setColor('#0091ff');
+    s().setStroke(8);
+    s().reset();
+    expect(s()).toMatchObject({ tool: 'rect', color: '#e5484d', stroke: 4 });
   });
 });
 

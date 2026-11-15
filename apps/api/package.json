@@ -15,6 +15,7 @@
     "@fastify/cookie": "^11.1.5",
     "@fastify/cors": "^11.4.3",
     "@fastify/multipart": "^10.1.8",
+    "@fastify/websocket": "^11.3.7",
     "@hpe/exporter": "workspace:*",
     "@hpe/shared": "workspace:*",
     "dotenv": "^18.0.10",
@@ -31,8 +32,10 @@
   "devDependencies": {
     "@types/mime-types": "^3.0.1",
     "@types/pg": "^8.23.1",
+    "@types/ws": "^8.18.2",
     "@types/yauzl": "^3.4.0",
     "drizzle-kit": "^0.31.11",
-    "fflate": "^0.8.3"
+    "fflate": "^0.8.3",
+    "ws": "^8.23.0"
   }
 }

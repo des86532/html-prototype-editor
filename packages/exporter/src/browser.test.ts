@@ -1,19 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { annotationsToThreads, parsePayload, serializePayload } from './browser.js';
 import { buildAnnotationsDocument } from './json.js';
-import { makeAnchor, makeInput, makeThread } from './fixtures.js';
+import { makeMarkup, makeInput, makeThread } from './fixtures.js';
 
 describe('annotationsToThreads', () => {
-  it('restores threads (ids, numbers, anchors, comments) sorted by number', () => {
+  it('restores threads (ids, numbers, markups, comments) sorted by createdAt', () => {
     const threads = [
-      makeThread(2, { status: 'resolved', resolvedAt: '2026-02-03T00:00:00Z', tags: ['copy'] }),
-      makeThread(1, { anchor: makeAnchor({ pageId: 'pricing.html' }) }),
+      makeThread(2, {
+        status: 'resolved',
+        resolvedAt: '2026-02-03T00:00:00Z',
+        createdAt: '2026-02-01T11:00:00.000Z',
+      }),
+      makeThread(1, { markup: makeMarkup({ pageId: 'pricing.html' }) }),
+      makeThread(3, { number: null, comments: [], createdAt: '2026-02-01T12:00:00.000Z' }),
     ];
     const doc = buildAnnotationsDocument(makeInput(threads));
     const back = annotationsToThreads(doc);
-    expect(back.map((t) => t.number)).toEqual([1, 2]);
+    expect(back.map((t) => t.number)).toEqual([1, 2, null]);
     expect(back).toEqual(
-      [...threads].sort((a, b) => a.number - b.number).map((t) => ({ ...t, versionId: 'v1' })),
+      [threads[1]!, threads[0]!, threads[2]!].map((t) => ({ ...t, versionId: 'v1' })),
     );
   });
 

@@ -12,6 +12,7 @@ import {
   UpdateVersionBodySchema,
   type VersionDetailResponse,
   type VersionResponse,
+  LIVE_CLOSE,
 } from '@hpe/shared';
 import { eq } from 'drizzle-orm';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -185,6 +186,7 @@ export function registerVersionRoutes(app: FastifyInstance, ctx: AppContext) {
         meta: { projectId: version.projectId, number: version.number },
       });
     });
+    ctx.hub.closeWhere((c) => c.versionId === version.id, LIVE_CLOSE.gone, 'version deleted');
     await gcBlobs(ctx, shas);
     return { ok: true };
   });

@@ -1,25 +1,31 @@
-import type { Thread } from '@hpe/shared';
+import { shapeBounds } from '@hpe/shared';
+import type { Box, Markup, MarkupShape, Thread } from '@hpe/shared';
 import type { ExportInput } from './types.js';
 
 export function exportedAt(input: ExportInput): string {
   return (input.now ?? new Date()).toISOString();
 }
 
-/** 以專案內編號排序（與 pin 編號一致）。 */
+/** 有編號的依編號排在前面，沒有編號的依建立時間排在後面。 */
 export function sortThreads(threads: readonly Thread[]): Thread[] {
-  return [...threads].sort((a, b) => a.number - b.number);
+  return [...threads].sort((a, b) => {
+    if (a.number !== null && b.number !== null) return a.number - b.number;
+    if (a.number !== null) return -1;
+    if (b.number !== null) return 1;
+    return a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0;
+  });
 }
 
-/** 依 version.pages 順序，其後是只出現在 anchor 的頁面。 */
+/** 依 version.pages 順序，其後是只出現在標記的頁面。 */
 export function groupByPage(
   threads: readonly Thread[],
   pageOrder: readonly string[],
 ): { page: string; threads: Thread[] }[] {
   const map = new Map<string, Thread[]>();
   for (const t of sortThreads(threads)) {
-    const list = map.get(t.anchor.pageId);
+    const list = map.get(t.markup.pageId);
     if (list) list.push(t);
-    else map.set(t.anchor.pageId, [t]);
+    else map.set(t.markup.pageId, [t]);
   }
   const out: { page: string; threads: Thread[] }[] = [];
   for (const p of pageOrder) {
@@ -33,25 +39,33 @@ export function groupByPage(
   return out;
 }
 
-/** 元素描述：`<tag> "text snippet"`（不含 selector）。 */
-export function elementLabel(t: Thread): string {
-  const { tag, text } = t.anchor.snapshot;
-  const snippet = text.replace(/\s+/g, ' ').trim();
-  const shown = snippet.length > 80 ? `${Array.from(snippet).slice(0, 80).join('')}…` : snippet;
-  return shown ? `<${tag}> "${shown}"` : `<${tag}>`;
-}
-
-export function bestSelector(t: Thread): string {
-  const s = t.anchor.selectors;
-  if (s.css) return s.css;
-  if (s.xpath) return s.xpath;
-  if (s.dataAttr) return `[${s.dataAttr.name}="${s.dataAttr.value}"]`;
-  return '';
-}
-
 export function breakpointLabel(t: Thread): string {
-  const w = Math.round(t.anchor.viewport.width);
-  return t.anchor.viewport.preset ? `${w}px (${t.anchor.viewport.preset})` : `${w}px`;
+  const { width, height } = t.markup.viewport;
+  return `${width}×${height}px`;
+}
+
+export function shapeLabel(shape: MarkupShape): string {
+  switch (shape.kind) {
+    case 'rect':
+      return '矩形';
+    case 'arrow':
+      return '箭頭';
+    case 'pen':
+      return '畫筆';
+    case 'highlighter':
+      return '螢光筆';
+    case 'text': {
+      const chars = Array.from(shape.text.replace(/\s+/g, ' ').trim());
+      const shown = chars.length > 40 ? `${chars.slice(0, 40).join('')}…` : chars.join('');
+      return `文字「${shown}」`;
+    }
+  }
+}
+
+/** 標記外框（頁面座標），四捨五入成整數。 */
+export function markupBox(m: Markup): Box {
+  const b = shapeBounds(m.shape);
+  return { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.w), h: Math.round(b.h) };
 }
 
 /** 檔名用 slug：ASCII、小寫；全是 CJK 等字元時退回 `project`。 */

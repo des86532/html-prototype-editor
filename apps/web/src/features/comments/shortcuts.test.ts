@@ -1,19 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
 import { handleShortcut, type ShortcutContext } from './shortcuts';
-import { canComment, canDeleteComment, canEditComment } from './permissions';
-import { alice, bob, makeComment } from '@/test-utils/fixtures';
+import { canComment, canDeleteComment, canEditComment, canManageMarkup } from './permissions';
+import { alice, bob, makeComment, makeThread } from '@/test-utils/fixtures';
 
 function ctx(over: Partial<ShortcutContext> = {}): ShortcutContext {
   return {
-    canComment: true,
+    canMarkup: true,
+    mode: 'interact',
     navigableIds: ['a', 'b', 'c'],
-    openId: null,
-    hasDraft: false,
+    selectedId: null,
     toggleMode: vi.fn(),
-    toggleShowComments: vi.fn(),
-    escape: vi.fn(),
-    openThread: vi.fn(),
-    toggleResolveOpen: vi.fn(),
+    toggleShowMarkups: vi.fn(),
+    escape: vi.fn(() => true),
+    select: vi.fn(),
+    setTool: vi.fn(),
+    deleteSelected: vi.fn(),
+    undo: vi.fn(),
     ...over,
   };
 }
@@ -33,73 +35,108 @@ const ev = (
   }) as KeyboardEvent;
 
 describe('keyboard shortcuts', () => {
-  it('C toggles comment mode; Shift+C toggles comment visibility', () => {
+  it('C toggles markup mode; Shift+C toggles markup visibility', () => {
     const c = ctx();
     expect(handleShortcut(ev('c'), c)).toBe(true);
     expect(c.toggleMode).toHaveBeenCalledTimes(1);
     expect(handleShortcut(ev('C', { shiftKey: true }), c)).toBe(true);
-    expect(c.toggleShowComments).toHaveBeenCalledTimes(1);
+    expect(c.toggleShowMarkups).toHaveBeenCalledTimes(1);
     expect(c.toggleMode).toHaveBeenCalledTimes(1);
   });
 
-  it('C is ignored for viewers (role gating) but Shift+C still works', () => {
-    const c = ctx({ canComment: false });
+  it('C is ignored without markup permission but Shift+C still works', () => {
+    const c = ctx({ canMarkup: false });
     expect(handleShortcut(ev('c'), c)).toBe(false);
     expect(c.toggleMode).not.toHaveBeenCalled();
     expect(handleShortcut(ev('C', { shiftKey: true }), c)).toBe(true);
   });
 
   it('ignores events from inputs, textareas, selects and contenteditable', () => {
-    const c = ctx();
+    const c = ctx({ mode: 'markup', selectedId: 'a' });
     for (const tag of ['input', 'textarea', 'select']) {
       expect(handleShortcut(ev('c', {}, document.createElement(tag)), c)).toBe(false);
+      expect(handleShortcut(ev('Delete', {}, document.createElement(tag)), c)).toBe(false);
+      expect(handleShortcut(ev('z', { metaKey: true }, document.createElement(tag)), c)).toBe(
+        false,
+      );
     }
     const div = document.createElement('div');
     Object.defineProperty(div, 'isContentEditable', { value: true });
     expect(handleShortcut(ev('j', {}, div), c)).toBe(false);
     expect(c.toggleMode).not.toHaveBeenCalled();
-    expect(c.openThread).not.toHaveBeenCalled();
+    expect(c.select).not.toHaveBeenCalled();
+    expect(c.undo).not.toHaveBeenCalled();
   });
 
-  it('ignores modified keys (Ctrl/⌘/Alt+C)', () => {
+  it('ignores modified keys except ⌘/Ctrl+Z', () => {
     const c = ctx();
     expect(handleShortcut(ev('c', { metaKey: true }), c)).toBe(false);
     expect(handleShortcut(ev('c', { ctrlKey: true }), c)).toBe(false);
     expect(handleShortcut(ev('c', { altKey: true }), c)).toBe(false);
+    expect(handleShortcut(ev('z', { metaKey: true, shiftKey: true }), c)).toBe(false);
+    expect(handleShortcut(ev('z', { metaKey: true, altKey: true }), c)).toBe(false);
+    expect(c.undo).not.toHaveBeenCalled();
   });
 
-  it('Esc only acts when there is a draft or an open card', () => {
-    expect(handleShortcut(ev('Escape'), ctx())).toBe(false);
-    const c1 = ctx({ hasDraft: true });
-    expect(handleShortcut(ev('Escape'), c1)).toBe(true);
+  it('⌘Z / Ctrl+Z calls undo when markup is allowed', () => {
+    const c = ctx();
+    expect(handleShortcut(ev('z', { metaKey: true }), c)).toBe(true);
+    expect(handleShortcut(ev('z', { ctrlKey: true }), c)).toBe(true);
+    expect(c.undo).toHaveBeenCalledTimes(2);
+    const no = ctx({ canMarkup: false });
+    expect(handleShortcut(ev('z', { metaKey: true }), no)).toBe(false);
+    expect(no.undo).not.toHaveBeenCalled();
+  });
+
+  it('Esc returns whatever escape() returns', () => {
+    const c1 = ctx({ escape: vi.fn(() => false) });
+    expect(handleShortcut(ev('Escape'), c1)).toBe(false);
     expect(c1.escape).toHaveBeenCalled();
-    const c2 = ctx({ openId: 'a' });
-    expect(handleShortcut(ev('Escape'), c2)).toBe(true);
+    expect(handleShortcut(ev('Escape'), ctx())).toBe(true);
   });
 
-  it('J/K move to the next/previous thread and open it', () => {
-    const c = ctx({ openId: 'b' });
+  it('J/K move to the next/previous marker and select it', () => {
+    const c = ctx({ selectedId: 'b' });
     handleShortcut(ev('j'), c);
-    expect(c.openThread).toHaveBeenLastCalledWith('c');
+    expect(c.select).toHaveBeenLastCalledWith('c');
     handleShortcut(ev('k'), c);
-    expect(c.openThread).toHaveBeenLastCalledWith('a');
+    expect(c.select).toHaveBeenLastCalledWith('a');
     const none = ctx();
     handleShortcut(ev('j'), none);
-    expect(none.openThread).toHaveBeenLastCalledWith('a');
+    expect(none.select).toHaveBeenLastCalledWith('a');
     handleShortcut(ev('k'), none);
-    expect(none.openThread).toHaveBeenLastCalledWith('c');
-    const end = ctx({ openId: 'c' });
+    expect(none.select).toHaveBeenLastCalledWith('c');
+    const end = ctx({ selectedId: 'c' });
     handleShortcut(ev('j'), end);
-    expect(end.openThread).toHaveBeenLastCalledWith('c');
+    expect(end.select).toHaveBeenLastCalledWith('c');
     expect(handleShortcut(ev('j'), ctx({ navigableIds: [] }))).toBe(false);
   });
 
-  it('R resolves the open thread, only with permission', () => {
-    const c = ctx({ openId: 'a' });
-    expect(handleShortcut(ev('r'), c)).toBe(true);
-    expect(c.toggleResolveOpen).toHaveBeenCalled();
-    expect(handleShortcut(ev('r'), ctx())).toBe(false);
-    expect(handleShortcut(ev('r'), ctx({ openId: 'a', canComment: false }))).toBe(false);
+  it('tool keys only act in markup mode', () => {
+    const m = ctx({ mode: 'markup' });
+    const expected = {
+      v: 'select',
+      r: 'rect',
+      a: 'arrow',
+      p: 'pen',
+      h: 'highlighter',
+      t: 'text',
+    };
+    for (const [k, tool] of Object.entries(expected)) {
+      expect(handleShortcut(ev(k), m)).toBe(true);
+      expect(m.setTool).toHaveBeenLastCalledWith(tool);
+    }
+    const i = ctx({ mode: 'interact' });
+    expect(handleShortcut(ev('r'), i)).toBe(false);
+    expect(i.setTool).not.toHaveBeenCalled();
+  });
+
+  it('Delete/Backspace delete the selection only when something is selected', () => {
+    expect(handleShortcut(ev('Delete'), ctx())).toBe(false);
+    const c = ctx({ selectedId: 'a' });
+    expect(handleShortcut(ev('Delete'), c)).toBe(true);
+    expect(handleShortcut(ev('Backspace'), c)).toBe(true);
+    expect(c.deleteSelected).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -122,5 +159,13 @@ describe('role gating', () => {
     expect(canDeleteComment(owner, theirs)).toBe(true);
     expect(canEditComment(owner, theirs)).toBe(false);
     expect(canEditComment(owner, own)).toBe(true);
+  });
+  it('markup management: owner any, commenter only own', () => {
+    const mine = makeThread(1, { createdBy: bob });
+    const others = makeThread(2, { createdBy: alice });
+    expect(canManageMarkup({ me: alice, role: 'owner' }, mine)).toBe(true);
+    expect(canManageMarkup({ me: bob, role: 'commenter' }, mine)).toBe(true);
+    expect(canManageMarkup({ me: bob, role: 'commenter' }, others)).toBe(false);
+    expect(canManageMarkup({ me: null, role: 'viewer' }, mine)).toBe(false);
   });
 });

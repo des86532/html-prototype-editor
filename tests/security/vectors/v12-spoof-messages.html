@@ -1,0 +1,15 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><script src="/_lib.js"></script></head><body>
+<script>
+  var evil = '<img src=x onerror="window.__xss=1;alert(1)">';
+  // 合法的 scroll
+  parent.postMessage({ v: 1, type: 'scroll', x: 0, y: 10, docW: 800, docH: 2000, vw: 800, vh: 600 }, '*');
+  // 型別錯誤：docW 是字串，schema 要擋下來
+  parent.postMessage({ v: 1, type: 'scroll', x: 0, y: 10, docW: '800', docH: 2000, vw: 800, vh: 600 }, '*');
+  parent.postMessage({ v: 1, type: 'dialog', kind: 'alert', text: evil }, '*');
+  parent.postMessage({ v: 1, type: 'navigateRequest', pageId: evil }, '*');
+  // 已不存在的 type
+  parent.postMessage({ v: 1, type: 'geometry', viewport: { w: 800, h: 600 }, rects: {} }, '*');
+  setTimeout(function () { report('result', {}); report('done'); }, 600);
+</script>
+</body></html>

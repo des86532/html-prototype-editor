@@ -1,42 +1,64 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CreateThreadBodySchema,
   TokenBucket,
-  chunkBySize,
-  messageByteSize,
+  UpdateThreadBodySchema,
+  authorColor,
   buildPath,
   initials,
-  matchesFilters,
   parseFrameMessage,
-  pinPoint,
-  DEFAULT_THREAD_FILTERS,
-  type Thread,
+  parseParentMessage,
 } from './index.js';
 
-const anchor = {
+const markup = {
   pageId: 'index.html',
-  kind: 'element' as const,
-  viewport: { width: 1440, height: 900, dpr: 2 },
-  selectors: {
-    fingerprint: { tag: 'button', classes: [], textHash: 'h', siblingIndex: 0, depth: 3 },
-    elementOffset: { x: 0.5, y: 0.5 },
-  },
-  fallback: { x: 10, y: 10, w: 100, h: 40 },
-  snapshot: { tag: 'button', text: 'Buy' },
+  viewport: { width: 1440, height: 900 },
+  shape: { kind: 'rect', x: 10, y: 10, w: 100, h: 20, color: '#e5484d', stroke: 4 },
 };
 
 describe('parseFrameMessage', () => {
-  it('accepts a valid pick and rejects oversize / malformed messages', () => {
-    const rect = { x: 1, y: 2, w: 3, h: 4 };
-    expect(parseFrameMessage({ v: 1, type: 'pick', draft: anchor, rect }).ok).toBe(true);
-    expect(parseFrameMessage({ v: 2, type: 'pick', draft: anchor, rect }).ok).toBe(false);
+  it('accepts a valid scroll and rejects wrong version, wrong types and oversize messages', () => {
+    const scroll = { v: 1, type: 'scroll', x: 0, y: 10, docW: 800, docH: 2000, vw: 800, vh: 600 };
+    expect(parseFrameMessage(scroll).ok).toBe(true);
+    expect(parseFrameMessage({ ...scroll, v: 2 }).ok).toBe(false);
+    expect(parseFrameMessage({ ...scroll, docW: '800' }).ok).toBe(false);
+    expect(parseFrameMessage({ ...scroll, x: Infinity }).ok).toBe(false);
     const huge = { v: 1, type: 'dialog', kind: 'alert', text: 'x'.repeat(70_000) };
     expect(parseFrameMessage(huge)).toEqual({ ok: false, reason: 'too-large' });
   });
+  it('drops removed message types', () => {
+    expect(
+      parseFrameMessage({ v: 1, type: 'geometry', viewport: { w: 1, h: 1 }, rects: {} }).ok,
+    ).toBe(false);
+  });
+});
 
-  it('enforces selector and textQuote length caps', () => {
-    const rect = { x: 0, y: 0, w: 1, h: 1 };
-    const longCss = { ...anchor, selectors: { ...anchor.selectors, css: 'a'.repeat(1025) } };
-    expect(parseFrameMessage({ v: 1, type: 'pick', draft: longCss, rect }).ok).toBe(false);
+describe('parseParentMessage', () => {
+  it('accepts scrollTo/scrollBy and rejects non-finite numbers', () => {
+    expect(parseParentMessage({ v: 1, type: 'scrollTo', x: 0, y: 120 }).ok).toBe(true);
+    expect(parseParentMessage({ v: 1, type: 'scrollBy', dx: 0, dy: -4 }).ok).toBe(true);
+    expect(parseParentMessage({ v: 1, type: 'scrollTo', x: 0, y: Infinity }).ok).toBe(false);
+    expect(parseParentMessage({ v: 1, type: 'setMode', mode: 'comment' }).ok).toBe(false);
+  });
+});
+
+describe('markup schemas', () => {
+  it('create body allows a markup without a note', () => {
+    expect(CreateThreadBodySchema.safeParse({ markup }).success).toBe(true);
+    expect(CreateThreadBodySchema.safeParse({ markup, body: ' ' }).success).toBe(false);
+  });
+  it('only accepts palette colors', () => {
+    const bad = { ...markup, shape: { ...markup.shape, color: 'red' } };
+    expect(CreateThreadBodySchema.safeParse({ markup: bad }).success).toBe(false);
+  });
+  it('rejects pen strokes over the point cap', () => {
+    const points = Array.from({ length: 2001 }, (_, i) => [i, i]);
+    const pen = { ...markup, shape: { kind: 'pen', points, color: '#e5484d', stroke: 2 } };
+    expect(CreateThreadBodySchema.safeParse({ markup: pen }).success).toBe(false);
+  });
+  it('update body needs at least one field', () => {
+    expect(UpdateThreadBodySchema.safeParse({}).success).toBe(false);
+    expect(UpdateThreadBodySchema.safeParse({ status: 'resolved' }).success).toBe(true);
   });
 });
 
@@ -52,20 +74,6 @@ describe('TokenBucket', () => {
   });
 });
 
-describe('pinPoint', () => {
-  it('applies elementOffset, scale and frame offset for element pins; top-right for regions', () => {
-    const rect = { x: 100, y: 200, w: 80, h: 40 };
-    expect(pinPoint('element', rect, { x: 0.5, y: 0.25 }, 0.5, { x: 10, y: 20 })).toEqual({
-      x: 70 + 10,
-      y: 105 + 20,
-    });
-    expect(pinPoint('region', rect, { x: 0.5, y: 0.25 }, 1, { x: 0, y: 0 })).toEqual({
-      x: 180,
-      y: 200,
-    });
-  });
-});
-
 describe('helpers', () => {
   it('buildPath encodes params and throws on missing ones', () => {
     expect(buildPath('getVersion', { id: 'a/b' })).toBe('/versions/a%2Fb');
@@ -75,41 +83,8 @@ describe('helpers', () => {
     expect(initials('Ada Lovelace')).toBe('AL');
     expect(initials('王小明')).toBe('王小');
   });
-  it('matchesFilters narrows by width and tag', () => {
-    const t = {
-      id: 't',
-      versionId: 'v',
-      number: 1,
-      anchor,
-      status: 'open',
-      tags: ['bug'],
-      createdBy: { kind: 'guest', guestId: 'g1', name: 'G' },
-      createdAt: 'x',
-      comments: [],
-    } as Thread;
-    expect(matchesFilters(t, DEFAULT_THREAD_FILTERS)).toBe(true);
-    expect(matchesFilters(t, { ...DEFAULT_THREAD_FILTERS, width: 768 })).toBe(false);
-    expect(matchesFilters(t, { ...DEFAULT_THREAD_FILTERS, tag: 'bug', authorId: 'g1' })).toBe(true);
-  });
-});
-
-describe('chunkBySize', () => {
-  it('keeps every batch under the 64 KB message limit even when item count is below the count cap', () => {
-    const items = Array.from({ length: 200 }, (_, i) => ({
-      threadId: `t${i}`,
-      pad: 'x'.repeat(700),
-    }));
-    const batches = chunkBySize(items);
-    expect(batches.length).toBeGreaterThan(1);
-    expect(batches.flat()).toHaveLength(200);
-    for (const b of batches) {
-      expect(
-        messageByteSize({ v: 1, type: 'resolveAnchors', requestId: '1', anchors: b }),
-      ).toBeLessThan(65_536);
-    }
-  });
-  it('splits by item cap and keeps order', () => {
-    const batches = chunkBySize([1, 2, 3, 4, 5], { maxItems: 2 });
-    expect(batches).toEqual([[1, 2], [3, 4], [5]]);
+  it('authorColor is stable per author', () => {
+    const a = { kind: 'guest', guestId: 'g1', name: 'G' } as const;
+    expect(authorColor(a)).toBe(authorColor(a));
   });
 });

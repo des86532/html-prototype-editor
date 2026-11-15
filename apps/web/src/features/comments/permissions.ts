@@ -1,4 +1,4 @@
-import { authorId, type Author, type Comment, type Role } from '@hpe/shared';
+import { authorId, type Author, type Comment, type Role, type Thread } from '@hpe/shared';
 
 export interface ThreadActor {
   /** 目前身分；擁有者為 user、已留名的訪客為 guest、否則 null */
@@ -25,4 +25,10 @@ export function canEditComment(actor: ThreadActor, c: Comment): boolean {
 export function canDeleteComment(actor: ThreadActor, c: Comment): boolean {
   if (actor.role === 'owner') return true;
   return canComment(actor) && isOwn(actor, c);
+}
+
+/** 移動／刪除標記：擁有者，或標記的作者本人。 */
+export function canManageMarkup(actor: ThreadActor, t: Thread): boolean {
+  if (actor.role === 'owner') return true;
+  return canComment(actor) && authorId(actor.me!) === authorId(t.createdBy);
 }

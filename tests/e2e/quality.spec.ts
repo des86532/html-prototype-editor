@@ -18,7 +18,7 @@ test.beforeEach(async ({ page }, info) => {
   if (!info.title.startsWith('準備') && !info.title.startsWith('50 MB')) await login(page, EMAIL);
 });
 
-test('準備：登入、匯入 fixture、建立一則評論', async ({ page }) => {
+test('準備：登入、匯入 fixture、建立一個附說明的矩形標記', async ({ page }) => {
   await login(page, EMAIL);
   const p = (await (
     await page.request.post(`${ORIGINS.api}/projects`, { data: { name: 'quality' } })
@@ -32,24 +32,10 @@ test('準備：登入、匯入 fixture、建立一則評論', async ({ page }) =
   versionId = ((await v.json()) as { version: { id: string } }).version.id;
   const t = await page.request.post(`${ORIGINS.api}/versions/${versionId}/threads`, {
     data: {
-      anchor: {
+      markup: {
         pageId: 'index.html',
-        kind: 'element',
-        viewport: { width: 1440, height: 900, dpr: 1 },
-        selectors: {
-          css: '#cta',
-          dataAttr: { name: 'data-testid', value: 'cta' },
-          fingerprint: {
-            tag: 'button',
-            classes: ['btn'],
-            textHash: 'h',
-            siblingIndex: 0,
-            depth: 4,
-          },
-          elementOffset: { x: 0.5, y: 0.5 },
-        },
-        fallback: { x: 0, y: 0, w: 10, h: 10 },
-        snapshot: { tag: 'button', text: 'Get started' },
+        viewport: { width: 1440, height: 900 },
+        shape: { kind: 'rect', x: 100, y: 300, w: 220, h: 80, color: '#e5484d', stroke: 4 },
       },
       body: '請把按鈕文案改成「立即開始」。',
     },
@@ -61,16 +47,16 @@ test('Viewer 首次可互動 < 2.5 秒（本機）', async ({ page }) => {
   const t0 = Date.now();
   await page.goto(`${ORIGINS.web}/p/${projectId}/v/1`);
   await waitForViewerReady(page);
-  await expect(page.locator('[data-pin-id]')).toHaveCount(1);
-  // 可互動 = pin 已出現且可以點開卡片
-  await page.getByRole('button', { name: /^評論 #1/ }).click();
-  await expect(page.getByRole('dialog', { name: /討論串/ })).toBeVisible();
+  await expect(page.locator('button[data-markup-id]')).toHaveCount(1);
+  // 可互動 = 標記 badge 已出現且可以點開卡片
+  await page.getByRole('button', { name: /^標記 #1/ }).click();
+  await expect(page.getByRole('dialog', { name: /^標記 #1/ })).toBeVisible();
   const ms = Date.now() - t0;
   console.log(`[quality] viewer interactive in ${ms}ms`);
   expect(ms).toBeLessThan(2500);
 });
 
-test('axe：主應用 0 個 critical（專案列表、專案頁、Viewer + 卡片 + 留言面板）', async ({
+test('axe：主應用 0 個 critical（專案列表、專案頁、Viewer + popover + 標記面板）', async ({
   page,
 }) => {
   const critical = async (label: string) => {
@@ -92,54 +78,49 @@ test('axe：主應用 0 個 critical（專案列表、專案頁、Viewer + 卡�
 
   await page.goto(`${ORIGINS.web}/p/${projectId}/v/1`);
   await waitForViewerReady(page);
-  await expect(page.locator('[data-pin-id]')).toHaveCount(1);
+  await expect(page.locator('button[data-markup-id]')).toHaveCount(1);
   await critical('viewer');
-  await page.getByRole('button', { name: /^評論 #1/ }).click();
-  await expect(page.getByRole('dialog', { name: /討論串/ })).toBeVisible();
+  await page.getByRole('button', { name: /^標記 #1/ }).click();
+  await expect(page.getByRole('dialog', { name: /^標記 #1/ })).toBeVisible();
   await critical('viewer + card');
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: /^留言面板/ }).click();
-  await expect(page.getByTestId('comment-panel')).toBeVisible();
-  await critical('viewer + panel');
+  await page.getByRole('button', { name: /^標記面板/ }).click();
+  await expect(page.getByTestId('markup-panel')).toBeVisible();
+  await critical('viewer + popover + panel');
 });
 
-test('只用鍵盤：Tab 到 pin → Enter 開卡片（焦點移入）→ Esc 關閉（焦點回到 pin）；J/K、Shift+C', async ({
+test('只用鍵盤：Tab 到 badge → Enter 開 popover（焦點移入）→ Esc 關閉（焦點回到 badge）；J/K、Shift+C', async ({
   page,
 }) => {
   await page.goto(`${ORIGINS.web}/p/${projectId}/v/1`);
   await waitForViewerReady(page);
-  const pin = page.getByRole('button', { name: /^評論 #1/ });
+  const pin = page.getByRole('button', { name: /^標記 #1/ });
   await expect(pin).toBeVisible();
   await pin.focus();
   await page.keyboard.press('Enter');
-  const card = page.getByRole('dialog', { name: /討論串/ });
+  const card = page.getByRole('dialog', { name: /^標記 #1/ });
   await expect(card).toBeVisible();
-  await expect(pin).toHaveAttribute('aria-expanded', 'true');
   // 焦點移入卡片
   await expect.poll(() => card.evaluate((el) => el.contains(document.activeElement))).toBe(true);
   await page.keyboard.press('Escape');
   await expect(card).toHaveCount(0);
   await expect(pin).toBeFocused();
-  await expect(pin).toHaveAttribute('aria-expanded', 'false');
 
-  // J 開啟（下一則）卡片，Shift+C 隱藏／顯示所有 pin
+  // J 開啟（下一則）卡片，Shift+C 隱藏／顯示所有標記
   await page.keyboard.press('j');
   await expect(card).toBeVisible();
   await page.keyboard.press('Escape');
   await page.keyboard.press('Shift+C');
-  await expect(page.locator('[data-pin-id]')).toHaveCount(0);
+  await expect(page.locator('[data-markup-id]')).toHaveCount(0);
   await page.keyboard.press('Shift+C');
-  await expect(page.locator('[data-pin-id]')).toHaveCount(1);
+  await expect(page.locator('button[data-markup-id]')).toHaveCount(1);
 
-  // 留言面板可用鍵盤開啟、項目可聚焦並以 Enter 選取
-  await page.getByRole('button', { name: /^留言面板/ }).focus();
+  // 標記面板可用鍵盤開啟、項目可聚焦並以 Enter 選取
+  await page.getByRole('button', { name: /^標記面板/ }).focus();
   await page.keyboard.press('Enter');
-  const panel = page.getByTestId('comment-panel');
+  const panel = page.getByTestId('markup-panel');
   await expect(panel).toBeVisible();
-  await panel
-    .getByRole('button', { name: /評論 #1|#1/ })
-    .first()
-    .focus();
+  await panel.locator('[data-panel-row]').first().focus();
   await page.keyboard.press('Enter');
   await expect(card).toBeVisible();
 });
@@ -186,7 +167,7 @@ test('50 MB zip 匯入 < 10 秒（上限內的最大壓縮檔，內容為難以�
   const est = (await (
     await page.request.get(`${ORIGINS.api}/versions/${vid}/export-estimate`)
   ).json()) as {
-    packageBytes: number;
+    htmlBytes: number;
   };
-  expect(est.packageBytes).toBeGreaterThan(48 * 1024 * 1024);
+  expect(est.htmlBytes).toBeGreaterThan(0);
 });

@@ -1,7 +1,7 @@
 import type { FrameToParent, ParentToFrame } from '@hpe/shared';
 
 /**
- * frame-agent 內部模組之間的契約（bridge.ts 實作；picker.ts、geometry.ts 等只依賴這個介面）。
+ * frame-agent 內部模組之間的契約（bridge.ts 實作；viewport.ts 等只依賴這個介面）。
  * agent 與 prototype 的 script 在同一個 JS realm，這個介面「不是」安全邊界。
  */
 export interface AgentBridge {
@@ -13,5 +13,5 @@ export interface AgentBridge {
   pageId(): string;
 }
 
-/** 每個功能模組（picker、geometry、navGuard…）都是 `install(bridge)`，回傳 dispose。 */
+/** 每個功能模組（viewport、navGuard…）都是 `install(bridge)`，回傳 dispose。 */
 export type AgentModule = (bridge: AgentBridge) => () => void;

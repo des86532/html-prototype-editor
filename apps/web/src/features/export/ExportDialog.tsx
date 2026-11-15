@@ -1,9 +1,8 @@
 import { useId, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { EXPORT_FORMATS, type ExportFormat, type ExportQuery, type ThreadTag } from '@hpe/shared';
+import { EXPORT_FORMATS, type ExportFormat, type ExportQuery } from '@hpe/shared';
 import { api as defaultApi, type Api } from '@/lib/api';
 import { messageForError } from '@/lib/errorMessages';
-import { TAG_LABELS } from '@/lib/format';
 import { Modal } from '@/features/ui/Modal';
 import { saveBlob } from './download';
 
@@ -18,16 +17,12 @@ export interface ExportDialogProps {
 const FORMAT_LABEL: Record<ExportFormat, string> = {
   json: 'JSON',
   markdown: 'Markdown',
-  csv: 'CSV',
   html: '單檔互動 HTML',
-  package: 'Review Package ZIP',
 };
 const FORMAT_EXT: Record<ExportFormat, string> = {
   json: 'json',
   markdown: 'md',
-  csv: 'csv',
   html: 'html',
-  package: 'zip',
 };
 
 export function formatBytes(n: number): string {
@@ -46,10 +41,8 @@ export function ExportDialog({
 }: ExportDialogProps) {
   const [format, setFormat] = useState<ExportFormat>('json');
   const [status, setStatus] = useState<'all' | 'open' | 'resolved'>('all');
-  const [tag, setTag] = useState<'all' | ThreadTag>('all');
   const [error, setError] = useState<string | null>(null);
   const statusId = useId();
-  const tagId = useId();
 
   const estimate = useQuery({
     queryKey: ['exportEstimate', versionId],
@@ -59,10 +52,7 @@ export function ExportDialog({
 
   const download = useMutation({
     mutationFn: async () => {
-      const query: ExportQuery = {
-        ...(status !== 'all' ? { status } : {}),
-        ...(tag !== 'all' ? { tag } : {}),
-      };
+      const query: ExportQuery = status !== 'all' ? { status } : {};
       const res = await api.exportVersion(versionId, format, query);
       saveBlob(res.blob, res.filename ?? `export-${format}.${FORMAT_EXT[format]}`);
     },
@@ -107,24 +97,6 @@ export function ExportDialog({
               <option value="resolved">resolved</option>
             </select>
           </div>
-          <div>
-            <label htmlFor={tagId} className="field-label">
-              標籤
-            </label>
-            <select
-              id={tagId}
-              value={tag}
-              onChange={(e) => setTag(e.target.value as typeof tag)}
-              className="input w-auto"
-            >
-              <option value="all">全部</option>
-              {(Object.keys(TAG_LABELS) as ThreadTag[]).map((t) => (
-                <option key={t} value={t}>
-                  {TAG_LABELS[t]}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
 
         <section aria-label="預估大小" className="rounded-md bg-paper p-3 text-sm">
@@ -137,9 +109,8 @@ export function ExportDialog({
           ) : (
             est && (
               <ul className="space-y-0.5">
-                <li>討論串數量：{est.threadCount}</li>
+                <li>標記數量：{est.threadCount}</li>
                 <li>單檔 HTML 預估：{formatBytes(est.htmlBytes)}</li>
-                <li>Review Package 預估：{formatBytes(est.packageBytes)}</li>
               </ul>
             )
           )}

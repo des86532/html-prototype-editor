@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { LIVE_LIMITS } from '@hpe/shared';
 
 /** monorepo 根目錄（apps/api/src/config.ts → ../../..）。相對路徑的環境變數以此為基準。 */
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -25,7 +26,7 @@ export interface RateLimitRule {
 }
 
 export type RateLimitName =
-  'authRequest' | 'shareOpen' | 'guestIdentity' | 'commentWrite' | 'cspReport';
+  'authRequest' | 'shareOpen' | 'guestIdentity' | 'commentWrite' | 'markupWrite' | 'cspReport';
 
 export type RateLimitConfig = Record<RateLimitName, RateLimitRule>;
 
@@ -34,6 +35,8 @@ export const DEFAULT_RATE_LIMITS: RateLimitConfig = {
   shareOpen: { capacity: 60, refillPerSecond: 1 },
   guestIdentity: { capacity: 10, refillPerSecond: 10 / 60 },
   commentWrite: { capacity: 30, refillPerSecond: 0.5 },
+  // 畫筆一筆就是一次 POST，額度要比留言寬
+  markupWrite: { capacity: 120, refillPerSecond: 2 },
   cspReport: { capacity: 100, refillPerSecond: 5 },
 };
 
@@ -64,6 +67,8 @@ export interface Config {
   internalToken: string;
   secureCookies: boolean;
   trustProxy: boolean;
+  /** WebSocket 連線後等待 hello 的時間（ms） */
+  liveHelloTimeoutMs: number;
   rateLimits: RateLimitConfig;
   /** 單檔 HTML 匯出用的 shell（export-viewer 建置產物） */
   exportShellPath: string;
@@ -143,6 +148,7 @@ export function loadConfig(env: Env = process.env): Config {
     internalToken,
     secureCookies: appOrigin.startsWith('https://'),
     trustProxy: bool(env.TRUST_PROXY, false),
+    liveHelloTimeoutMs: LIVE_LIMITS.helloTimeoutMs,
     rateLimits: scaleRateLimits(DEFAULT_RATE_LIMITS, Number(env.RATE_LIMIT_SCALE ?? 1)),
     exportShellPath: resolveFromRoot(
       env.EXPORT_SHELL_PATH ?? 'packages/export-viewer/dist/index.html',

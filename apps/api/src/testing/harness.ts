@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { Anchor, ThreadTag } from '@hpe/shared';
+import type { Markup } from '@hpe/shared';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { buildApp } from '../app.js';
 import type { GoogleIdentity, GoogleOAuth } from '../auth/google.js';
@@ -186,24 +186,17 @@ export function cookieOf(res: LightMyRequestResponse): string {
   return `${sc.name}=${sc.value}`;
 }
 
-export function sampleAnchor(over: Partial<Anchor> = {}): Anchor {
+export function sampleMarkup(over: Partial<Markup> = {}): Markup {
   return {
     pageId: 'index.html',
-    kind: 'element',
-    viewport: { width: 1440, height: 900, dpr: 1 },
-    selectors: {
-      css: '#a',
-      fingerprint: { tag: 'h1', classes: [], textHash: 'abc', siblingIndex: 0, depth: 2 },
-      elementOffset: { x: 0.5, y: 0.5 },
-    },
-    fallback: { x: 10, y: 10, w: 100, h: 20 },
-    snapshot: { tag: 'h1', text: 'Hi' },
+    viewport: { width: 1440, height: 900 },
+    shape: { kind: 'rect', x: 10, y: 10, w: 100, h: 20, color: '#e5484d', stroke: 4 },
     ...over,
   };
 }
 
-export function threadBody(body = '請調整這裡', tags?: ThreadTag[]) {
-  return { anchor: sampleAnchor(), body, ...(tags ? { tags } : {}) };
+export function threadBody(body: string | undefined = '請調整這裡') {
+  return { markup: sampleMarkup(), body };
 }
 
 export function shareHeaders(token: string, guestToken?: string): Record<string, string> {

@@ -56,6 +56,16 @@ export async function proxyToBackend(
   if (clientIp) headers.set('x-forwarded-for', clientIp);
   headers.set('x-forwarded-proto', 'https');
 
+  if (request.headers.get('upgrade')?.toLowerCase() === 'websocket') {
+    headers.set('upgrade', 'websocket');
+    try {
+      // Workers 的 fetch 對 Upgrade: websocket 會回傳帶 webSocket 的 101；必須原樣回傳，不能重新包成 new Response
+      return await fetchImpl(target, { method: 'GET', headers });
+    } catch {
+      return jsonError(502, '無法連線到後端');
+    }
+  }
+
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
   let upstream: Response;
   try {

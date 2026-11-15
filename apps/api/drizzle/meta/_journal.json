@@ -15,6 +15,20 @@
       "when": 1794635699740,
       "tag": "0001_hesitant_reavers",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794716281548,
+      "tag": "0002_markup_threads",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794717202976,
+      "tag": "0003_thread_rev",
+      "breakpoints": true
     }
   ]
 }
