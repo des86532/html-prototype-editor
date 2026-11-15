@@ -275,9 +275,21 @@ test('擁有者回覆並標記已解決；已解決預設隱藏、可切換顯�
   await expect(card).toContainText('Guest Gina');
   // 惡意內容只會以純文字顯示
   await expect(card).toContainText('<script>alert(1)</script>');
-  await card.locator('textarea').fill('已收到，會修正。');
+  // # 色票與 @ 提及：選完會插入 #e5484d 與 @Guest Gina，送出後顯示成色碼標籤與提及標籤
+  const reply = card.locator('textarea');
+  await reply.pressSequentially('已改成 #');
+  await card.getByRole('listbox', { name: '選擇顏色' }).getByRole('option').first().click();
+  await reply.pressSequentially(' 請 @Guest');
+  await expect(card.getByRole('listbox', { name: '提及成員' })).toContainText('Guest Gina');
+  await owner.keyboard.press('Enter');
+  await expect(reply).toHaveValue('已改成 #e5484d 請 @Guest Gina ');
   await card.getByRole('button', { name: '回覆' }).click();
-  await expect(card).toContainText('已收到，會修正。');
+  await expect(card).toContainText('已改成');
+  await expect(card.locator('[data-color="#e5484d"]')).toHaveCSS(
+    'background-color',
+    'rgb(229, 72, 77)',
+  );
+  await expect(card.locator('[data-mention]')).toHaveText('@Guest Gina');
   await card.getByRole('button', { name: '標記為已解決' }).click();
   // 開著的卡片不會因為標記解決而消失（按鈕變成「重新開啟」）；關閉後已解決的標記才依預設隱藏
   await expect(card.getByRole('button', { name: '重新開啟' })).toBeVisible();

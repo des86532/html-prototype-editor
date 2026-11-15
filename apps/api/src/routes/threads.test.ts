@@ -498,6 +498,51 @@ describe('授權矩陣', () => {
   });
 });
 
+describe('參與者清單（@ 提及）', () => {
+  it('擁有者在前，其後依最新活動由新到舊；分享連結可讀，沒有身分 401', async () => {
+    const p = (await h.createProject(owner, '參與者')).id;
+    const v = (await h.uploadHtml(owner, p)).id;
+    const link = await h.createShare(owner, p, 'commenter');
+    const a = await h.guest(link.token, '訪客 A');
+    const b = await h.guest(link.token, '訪客 B');
+    const tick = () => {
+      now = new Date(now.getTime() + 1000);
+    };
+
+    // 擁有者建立一個不帶說明的標記（也算活動，但擁有者固定排第一且不重複）
+    tick();
+    const t1 = (
+      (await post(`/versions/${v}/threads`, asOwner(), { markup: sampleMarkup() })).json() as Json
+    ).thread as Json;
+    tick();
+    expect(
+      (await post(`/threads/${t1.id}/comments`, shareHeaders(link.token, a), { body: '回覆' }))
+        .statusCode,
+    ).toBe(201);
+    tick();
+    expect(
+      (await post(`/versions/${v}/threads`, shareHeaders(link.token, b), threadBody('乙的標記')))
+        .statusCode,
+    ).toBe(201);
+
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/versions/${v}/participants`,
+      headers: shareHeaders(link.token, a),
+    });
+    expect(res.statusCode).toBe(200);
+    const { participants } = res.json() as { participants: Json[] };
+    expect(participants.map((x) => [x.kind, x.name])).toEqual([
+      ['user', 'owner'],
+      ['guest', '訪客 B'],
+      ['guest', '訪客 A'],
+    ]);
+
+    const anon = await h.app.inject({ method: 'GET', url: `/versions/${v}/participants` });
+    expect(anon.statusCode).toBe(401);
+  });
+});
+
 describe('留言頻率限制', () => {
   it('超過限制回 429（以 IP + shareToken 為 key）', async () => {
     const limited = await createHarness({

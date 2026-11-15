@@ -1,7 +1,8 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useContext, useEffect, useId, useRef, useState } from 'react';
 import type { Comment, Thread } from '@hpe/shared';
 import { SafeMarkdown } from '@/lib/SafeMarkdown';
 import { formatRelativeTime } from '@/lib/format';
+import { CommentAssistContext } from './CommentAssistContext';
 import { Composer } from './Composer';
 import { canComment, canDeleteComment, canEditComment, type ThreadActor } from './permissions';
 import type { ThreadActions } from './types';
@@ -182,6 +183,7 @@ function CommentRow({
   actions: ThreadActions;
 }) {
   const [editing, setEditing] = useState(false);
+  const { names } = useContext(CommentAssistContext);
   return (
     <li className="py-2" data-comment-id={comment.id}>
       <div className="flex items-center justify-between gap-2">
@@ -217,7 +219,7 @@ function CommentRow({
           />
         </div>
       ) : (
-        <SafeMarkdown source={comment.body} className="mt-0.5 text-ink" />
+        <SafeMarkdown source={comment.body} mentionNames={names} className="mt-0.5 text-ink" />
       )}
     </li>
   );

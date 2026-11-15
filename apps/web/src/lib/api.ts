@@ -12,6 +12,7 @@ import type {
   ShareLinksResponse,
   ShareResolveResponse,
   ThreadResponse,
+  ParticipantsResponse,
   ThreadsResponse,
   ThreadStatus,
   Markup,
@@ -54,6 +55,8 @@ export function createApi(c: ApiClient) {
     rotateContentKey: (id: string) =>
       c.request<VersionResponse>('rotateContentKey', { params: { id } }),
 
+    listParticipants: (versionId: string) =>
+      c.request<ParticipantsResponse>('listParticipants', { params: { id: versionId } }),
     listThreads: (versionId: string) =>
       c.request<ThreadsResponse>('listThreads', { params: { id: versionId } }),
     createThread: (versionId: string, body: { markup: Markup; body?: string }) =>
