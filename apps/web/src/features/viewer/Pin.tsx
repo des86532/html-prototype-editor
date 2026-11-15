@@ -56,7 +56,7 @@ export function Pin({ item, open, onClick, onPointerEnter, onPointerLeave, butto
         onPointerEnter={onPointerEnter}
         onPointerLeave={onPointerLeave}
         className={[
-          'pointer-events-auto relative flex size-7 items-center justify-center rounded-full border-2 border-white text-[11px] font-semibold leading-none text-white shadow-md outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent',
+          'pointer-events-auto relative flex size-7 items-center justify-center rounded-full border-2 border-surface text-[11px] font-semibold leading-none text-white shadow-md outline-offset-2 focus-visible:outline-2 focus-visible:outline-accent',
           item.anchorStatus === 'fuzzy' ? 'outline-2 outline-dashed outline-ink' : '',
           item.draft ? 'opacity-50' : item.resolved ? 'opacity-60' : '',
           open ? 'ring-2 ring-accent' : '',
@@ -72,7 +72,7 @@ export function Pin({ item, open, onClick, onPointerEnter, onPointerLeave, butto
         {!item.draft && (
           <span
             aria-hidden="true"
-            className="absolute -right-3 -top-2 rounded bg-white px-0.5 text-[9px] font-bold text-ink shadow"
+            className="absolute -right-3 -top-2 rounded bg-surface px-0.5 text-[9px] font-bold text-ink shadow"
           >
             #{item.number}
           </span>

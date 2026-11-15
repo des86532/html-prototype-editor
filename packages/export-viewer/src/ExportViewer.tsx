@@ -310,15 +310,12 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
   );
 
   return (
-    <div className="flex h-screen flex-col bg-neutral-100" data-testid="export-viewer">
-      <header className="flex items-center gap-3 border-b border-neutral-200 bg-white px-3 py-2">
+    <div className="flex h-dvh flex-col bg-stage" data-testid="export-viewer">
+      <header className="flex items-center gap-3 border-b border-line bg-surface px-3 py-2">
         <h1 className="truncate text-sm font-semibold">
           {meta.projectName} · v{meta.versionNumber}
         </h1>
-        <span
-          role="note"
-          className="rounded bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700"
-        >
+        <span role="note" className="chip chip-muted">
           唯讀匯出檔 · 無網路
         </span>
       </header>
@@ -342,7 +339,7 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
       <div className="flex min-h-0 flex-1">
         <div
           ref={setContainerEl}
-          className="relative min-w-0 flex-1 overflow-auto p-4"
+          className="stage-grid relative min-w-0 flex-1 overflow-auto p-4"
           data-testid="viewer-container"
         >
           <div
@@ -380,7 +377,7 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
           {toast && (
             <div
               role="status"
-              className="fixed bottom-4 left-1/2 z-50 max-w-md -translate-x-1/2 rounded-md bg-neutral-900 px-3 py-2 text-sm text-white shadow-lg"
+              className="fixed bottom-4 left-1/2 z-50 max-w-md -translate-x-1/2 rounded-md bg-ink px-3 py-2 text-sm text-white shadow-lg"
             >
               {toast}
             </div>

@@ -1,3 +1,4 @@
 @import 'tailwindcss';
+@import '../../../apps/web/src/theme.css';
 /* 重用 apps/web 的元件，需要掃描它們的 class。 */
 @source "../../../apps/web/src";

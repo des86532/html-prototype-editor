@@ -81,7 +81,7 @@ function PinSlotImpl({
           data-side={edge.side}
           aria-label={`${pinAriaLabel(pin)}（在畫面外，點擊捲動到該位置）`}
           onClick={() => onEdgeClick(pin.id)}
-          className="pointer-events-auto absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 rounded-full border border-white px-1.5 py-0.5 text-[11px] font-semibold text-white shadow-md"
+          className="pointer-events-auto absolute flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 rounded-full border border-surface px-1.5 py-0.5 text-[11px] font-semibold text-white shadow-md"
           style={{ left: edge.x, top: edge.y, backgroundColor: color }}
         >
           <span aria-hidden="true">{ARROWS[edge.side]}</span>
