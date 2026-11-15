@@ -32,6 +32,17 @@ describe('useFullPageHeight', () => {
     expect(result.current.pageHeight).toBe(2400);
   });
 
+  it('re-measures when the page grows after settling at the device height (late stylesheet)', () => {
+    const { result } = setup();
+    act(() => result.current.onScrollMessage({ docH: 900, vh: 900 }));
+    act(() => void vi.advanceTimersByTime(400));
+    expect(result.current).toMatchObject({ pageHeight: 900, settled: true });
+    act(() => result.current.onScrollMessage({ docH: 1650, vh: 900 }));
+    expect(result.current.settled).toBe(false);
+    act(() => void vi.advanceTimersByTime(400));
+    expect(result.current).toMatchObject({ pageHeight: 1650, settled: true });
+  });
+
   it('ignores messages measured at a different viewport height', () => {
     const { result } = setup();
     act(() => result.current.onScrollMessage({ docH: 5000, vh: 1200 }));
