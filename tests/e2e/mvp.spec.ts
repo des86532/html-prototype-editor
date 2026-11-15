@@ -110,23 +110,24 @@ test('畫矩形 → popover 聚焦「新增說明」→ 送出後顯示編號 1�
   await expect(card).toHaveCount(0);
 });
 
-test('捲動 prototype 後標記跟著頁面移動（badge 位移 = 捲動量 × scale）', async () => {
+test('捲動 prototype 後標記跟著頁面移動（badge 位移 = 捲動量）', async () => {
   const badge = badges(owner).first();
   await expect(badge).toBeVisible();
   const frame = await frameWindow(owner);
-  const before = (await badge.boundingBox())!;
-  const { scale } = await canvasMetrics(owner);
+  // 以畫布為基準換算成頁面座標：縮放比例若在量測之間才穩定下來（慢的 WebKit runner），結果仍然一致
+  const rel = async () => {
+    const b = (await badge.boundingBox())!;
+    const m = await canvasMetrics(owner);
+    return { x: (b.x - m.box.x) / m.scale, y: (b.y - m.box.y) / m.scale };
+  };
+  const before = await rel();
   await frame.evaluate(() => window.scrollTo(0, 300));
-  await expect
-    .poll(async () => before.y - (await badge.boundingBox())!.y)
-    .toBeGreaterThan(300 * scale - 2);
-  const after = (await badge.boundingBox())!;
-  expect(Math.abs(before.y - after.y - 300 * scale)).toBeLessThanOrEqual(2);
-  expect(Math.abs(before.x - after.x)).toBeLessThanOrEqual(2);
+  await expect.poll(async () => before.y - (await rel()).y).toBeGreaterThan(300 - 3);
+  const after = await rel();
+  expect(Math.abs(before.y - after.y - 300)).toBeLessThanOrEqual(3);
+  expect(Math.abs(before.x - after.x)).toBeLessThanOrEqual(3);
   await frame.evaluate(() => window.scrollTo(0, 0));
-  await expect
-    .poll(async () => Math.abs((await badge.boundingBox())!.y - before.y))
-    .toBeLessThan(2);
+  await expect.poll(async () => Math.abs((await rel()).y - before.y)).toBeLessThan(3);
 });
 
 test('RWD：切到 768 時標記隱藏並出現「1440px（1）」chip；點 chip 回到 1440', async () => {
