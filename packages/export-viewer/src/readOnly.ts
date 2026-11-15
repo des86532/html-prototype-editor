@@ -1,4 +1,3 @@
-import type { Thread } from '@hpe/shared';
 import type { ThreadActor } from '@web/features/comments/permissions';
 import type { ThreadActions } from '@web/features/comments/types';
 
@@ -12,10 +11,9 @@ const reject = (): Promise<never> => Promise.reject(new Error(READ_ONLY_MESSAGE)
 export const READ_ONLY_ACTIONS: ThreadActions = {
   onReply: reject,
   onSetStatus: reject,
-  onSetTags: reject,
+  onMoveMarkup: reject,
+  onDeleteThread: reject,
   onEditComment: reject,
   onDeleteComment: reject,
   onCopyLink: reject,
 };
-
-export const rejectCreateThread = (): Promise<Thread> => reject();

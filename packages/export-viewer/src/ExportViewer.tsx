@@ -4,42 +4,36 @@ import {
   FRAME_TIMINGS,
   MESSAGE_LIMITS,
   PROTOCOL_VERSION,
+  shapeBounds,
   type FrameToParent,
-  type Rect,
   type Thread,
 } from '@hpe/shared';
 import { annotationsToThreads, injectAgent } from '@hpe/exporter/browser';
 import type { SingleFilePayload } from '@hpe/exporter/browser';
-import { CommentPanel, type PanelThread } from '@web/features/comments/CommentPanel';
+import { ThreadPopover } from '@web/features/comments/ThreadPopover';
 import { useViewerShortcuts } from '@web/features/comments/shortcuts';
+import { MarkupCanvas } from '@web/features/markup/MarkupCanvas';
+import { MarkupPanel } from '@web/features/markup/MarkupPanel';
+import { WidthChips } from '@web/features/markup/WidthChips';
 import { FrameWatchdog, useFrameWatchdog } from '@web/features/viewer/FrameWatchdog';
-import { ThreadLayer } from '@web/features/viewer/ThreadLayer';
-import { effectiveAnchorStatus, type AnchorResult } from '@web/features/viewer/buildPins';
+import { fitScale } from '@web/features/viewer/fitScale';
 import { useFrameBridge, type BridgeWarning } from '@web/features/viewer/useFrameBridge';
 import { truncate } from '@web/lib/format';
+import { useElementSize } from '@web/lib/useElementSize';
 import { useLatest } from '@web/lib/useLatest';
 import { useUiStore } from '@web/state/uiStore';
 import { ExportSandboxFrame } from './ExportSandboxFrame';
 import { ExportToolbar } from './ExportToolbar';
 import { resolvePageRequest } from './navigation';
-import { READ_ONLY_ACTIONS, READ_ONLY_ACTOR, rejectCreateThread } from './readOnly';
+import { READ_ONLY_ACTIONS, READ_ONLY_ACTOR } from './readOnly';
 
-const FIT_PADDING_PX = 32;
 const TOAST_MS = 4000;
 
-function useElementWidth(el: HTMLElement | null): number {
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => setWidth(el.clientWidth));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [el]);
-  return width;
-}
+const noop = () => undefined;
+const cannotManage = () => false;
 
 /**
- * 單檔匯出 shell 的唯讀 viewer：與 live PrototypeViewer 共用 pin／卡片／面板元件與 frame 橋接，
+ * 單檔匯出 shell 的唯讀 viewer：與 live PrototypeViewer 共用標記畫布／卡片／面板元件與 frame 橋接，
  * 但 prototype 以 `srcdoc` 載入、多頁導覽由 agent 的 `navigateRequest` 驅動換 srcdoc，且沒有任何寫入路徑。
  */
 export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
@@ -59,7 +53,7 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
   const [frameKey, setFrameKey] = useState(0);
   const [iframe, setIframe] = useState<HTMLIFrameElement | null>(null);
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
-  const containerWidth = useElementWidth(containerEl);
+  const containerSize = useElementSize(containerEl);
 
   useEffect(() => {
     useUiStore.getState().reset();
@@ -68,15 +62,14 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
   }, [initialPage]);
 
   const [readyPage, setReadyPage] = useState<string | null>(null);
-  const [readyEpoch, setReadyEpoch] = useState(0);
-  const [rects, setRects] = useState<Record<string, Rect | null>>({});
-  const [results, setResults] = useState<Record<string, AnchorResult>>({});
-  const [frameViewport, setFrameViewport] = useState<{ w: number; h: number } | null>(null);
+  const [scroll, setScroll] = useState<{ x: number; y: number; vw: number; vh: number } | null>(
+    null,
+  );
+  const [selectedAnchorEl, setSelectedAnchorEl] = useState<HTMLElement | null>(null);
+  const [canvasEl, setCanvasEl] = useState<HTMLElement | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  const resolvedRef = useRef<Set<string>>(new Set());
-  const requestSeq = useRef(0);
-  const pendingOpenRef = useRef<string | null>(null);
+  const pendingSelectRef = useRef<string | null>(null);
   const lastToastAt = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pagesRef = useLatest(pagePaths);
@@ -102,9 +95,7 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
     setFrameKey((k) => k + 1);
     watchdogResetRef.current();
     setReadyPage(null);
-    setReadyEpoch(0);
-    setRects({});
-    setResults({});
+    setScroll(null);
   }, []);
 
   const onMessage = useCallback(
@@ -112,30 +103,12 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
       watchdogHandleRef.current(msg);
       switch (msg.type) {
         case 'ready':
-          resolvedRef.current = new Set();
-          setRects({});
-          setResults({});
           setReadyPage(msg.pageId);
-          setReadyEpoch((n) => n + 1);
           useUiStore.getState().setPageId(msg.pageId);
-          sendRef.current({ v: PROTOCOL_VERSION, type: 'init', mode: 'interact' });
+          sendRef.current({ v: PROTOCOL_VERSION, type: 'init' });
           break;
-        case 'anchorsResolved':
-          setResults((prev) => {
-            const next = { ...prev };
-            for (const r of msg.results)
-              next[r.threadId] = { status: r.status, confidence: r.confidence };
-            return next;
-          });
-          setRects((prev) => {
-            const next = { ...prev };
-            for (const r of msg.results) next[r.threadId] = r.rect;
-            return next;
-          });
-          break;
-        case 'geometry':
-          setFrameViewport(msg.viewport);
-          setRects((prev) => ({ ...prev, ...msg.rects }));
+        case 'scroll':
+          setScroll({ x: msg.x, y: msg.y, vw: msg.vw, vh: msg.vh });
           break;
         case 'navigateRequest': {
           const target = resolvePageRequest(msg.pageId, pagesRef.current);
@@ -153,7 +126,7 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
           break;
         }
         default:
-          // pong（watchdog 已處理）；hover／pick／described 只在 Comment 模式出現，匯出檔沒有該模式。
+          // pong（watchdog 已處理）；storageSnapshot 匯出檔不使用。
           break;
       }
     },
@@ -176,134 +149,112 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
     watchdogResetRef.current = watchdog.reset;
   });
 
-  /* ---------------- resolve + track ---------------- */
-  const pageThreads = useMemo(
-    () => threads.filter((t) => readyPage !== null && t.anchor.pageId === readyPage),
-    [threads, readyPage],
-  );
-  const pageIdsKey = pageThreads.map((t) => t.id).join(',');
-  useEffect(() => {
-    if (readyEpoch === 0 || readyPage === null) return;
-    const todo = pageThreads
-      .filter((t) => !resolvedRef.current.has(t.id))
-      .map((t) => {
-        resolvedRef.current.add(t.id);
-        return { threadId: t.id, anchor: t.anchor };
-      });
-    for (let i = 0; i < todo.length; i += MESSAGE_LIMITS.maxAnchorsPerRequest) {
-      send({
-        v: PROTOCOL_VERSION,
-        type: 'resolveAnchors',
-        requestId: String(++requestSeq.current),
-        anchors: todo.slice(i, i + MESSAGE_LIMITS.maxAnchorsPerRequest),
-      });
-    }
-    send({
-      v: PROTOCOL_VERSION,
-      type: 'trackAnchors',
-      threadIds: pageThreads.map((t) => t.id).slice(0, MESSAGE_LIMITS.maxAnchorsPerRequest),
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- pageIdsKey 代表 pageThreads 的 id 集合
-  }, [readyEpoch, readyPage, pageIdsKey, send]);
+  const { width, height } = ui.device;
 
-  const scrollTo = useCallback(
-    (threadId: string) => send({ v: PROTOCOL_VERSION, type: 'scrollToAnchor', threadId }),
-    [send],
+  /* ---------------- 標記 ---------------- */
+  const visible = useMemo(
+    () =>
+      threads.filter(
+        (t) =>
+          ui.showMarkups &&
+          readyPage !== null &&
+          t.markup.pageId === readyPage &&
+          t.markup.viewport.width === width &&
+          (ui.showResolved || t.status === 'open' || t.id === ui.selectedId),
+      ),
+    [threads, ui.showMarkups, ui.showResolved, ui.selectedId, readyPage, width],
   );
+  const markupCount = useMemo(() => threads.filter((t) => t.number !== null).length, [threads]);
 
-  const selectThread = useCallback(
+  const jumpTo = useCallback(
     (thread: Thread) => {
       const s = useUiStore.getState();
-      const w = Math.round(thread.anchor.viewport.width);
+      const w = thread.markup.viewport.width;
       if (w !== s.device.width) {
         const preset = DEVICE_PRESETS.find((p) => p.width === w);
         s.setDevice(
           preset
             ? { presetId: preset.id, width: preset.width, height: preset.height }
-            : {
-                presetId: 'custom',
-                width: w,
-                height: Math.round(thread.anchor.viewport.height) || s.device.height,
-              },
+            : { presetId: 'custom', width: w, height: thread.markup.viewport.height },
         );
       }
-      if (thread.anchor.pageId !== readyPage) {
-        pendingOpenRef.current = thread.id;
-        reloadFrame(thread.anchor.pageId);
-      } else {
-        scrollTo(thread.id);
-        s.openThread(thread.id);
+      if (thread.markup.pageId !== readyPage) {
+        pendingSelectRef.current = thread.id;
+        reloadFrame(thread.markup.pageId);
+        return;
       }
+      const b = shapeBounds(thread.markup.shape);
+      const vw = scroll?.vw ?? w;
+      const vh = scroll?.vh ?? thread.markup.viewport.height;
+      send({
+        v: PROTOCOL_VERSION,
+        type: 'scrollTo',
+        x: Math.max(0, b.x + b.w / 2 - vw / 2),
+        y: Math.max(0, b.y + b.h / 2 - vh / 2),
+      });
+      s.select(thread.id);
     },
-    [readyPage, reloadFrame, scrollTo],
+    [readyPage, reloadFrame, scroll, send],
   );
 
-  // 面板選取跨頁時：等新頁面載入、錨點解析後才開卡片。
+  // 面板選取跨頁時：等新頁面載入並收到第一則 scroll（agent 已可捲動）後才選取。
   useEffect(() => {
-    const id = pendingOpenRef.current;
-    if (!id || readyPage === null) return;
+    const id = pendingSelectRef.current;
+    if (!id || readyPage === null || scroll === null) return;
     const t = threads.find((x) => x.id === id);
-    if (!t) {
-      pendingOpenRef.current = null;
-      return;
-    }
-    if (t.anchor.pageId !== readyPage || results[id] === undefined) return;
-    pendingOpenRef.current = null;
-    scrollTo(id);
-    useUiStore.getState().openThread(id);
-  }, [threads, readyPage, results, scrollTo]);
-
-  const items = useMemo<PanelThread[]>(
-    () =>
-      threads.map((thread) => ({
-        thread,
-        anchorStatus: effectiveAnchorStatus(thread, results, pagePaths, readyPage),
-      })),
-    [threads, results, pagePaths, readyPage],
-  );
+    pendingSelectRef.current = null;
+    if (!t || t.markup.pageId !== readyPage) return;
+    jumpTo(t);
+  }, [threads, readyPage, scroll, jumpTo]);
 
   const navigableIds = useMemo(
     () =>
-      items
-        .filter(
-          ({ thread, anchorStatus }) =>
-            thread.anchor.pageId === readyPage &&
-            (anchorStatus === 'exact' || anchorStatus === 'fuzzy' || anchorStatus === 'fallback') &&
-            (ui.showResolved || thread.status === 'open'),
-        )
-        .sort((a, b) => a.thread.number - b.thread.number)
-        .map((e) => e.thread.id),
-    [items, readyPage, ui.showResolved],
+      visible
+        .filter((t): t is Thread & { number: number } => t.number !== null)
+        .sort((a, b) => a.number - b.number)
+        .map((t) => t.id),
+    [visible],
   );
-  const closeCard = useCallback(() => {
-    const id = useUiStore.getState().openThreadId;
-    useUiStore.getState().openThread(null);
-    if (id) {
-      requestAnimationFrame(() =>
-        document.querySelector<HTMLElement>(`[data-pin-id="${CSS.escape(id)}"] button`)?.focus(),
-      );
-    }
+  const escape = useCallback(() => {
+    const id = useUiStore.getState().selectedId;
+    if (id === null) return false;
+    useUiStore.getState().select(null);
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>(`[data-markup-id="${CSS.escape(id)}"]`)?.focus(),
+    );
+    return true;
   }, []);
   useViewerShortcuts({
-    canComment: false,
+    canMarkup: false,
+    mode: 'interact',
     navigableIds,
-    openId: ui.openThreadId,
-    hasDraft: false,
-    toggleMode: () => undefined,
-    toggleShowComments: () => useUiStore.getState().toggleShowComments(),
-    escape: closeCard,
-    openThread: (id) => {
-      useUiStore.getState().openThread(id);
-      scrollTo(id);
+    selectedId: ui.selectedId,
+    toggleMode: noop,
+    toggleShowMarkups: () => useUiStore.getState().toggleShowMarkups(),
+    escape,
+    select: (id) => {
+      const t = threads.find((x) => x.id === id);
+      if (t) jumpTo(t);
     },
-    toggleResolveOpen: () => undefined,
+    setTool: noop,
+    deleteSelected: noop,
+    undo: noop,
   });
 
+  const selected = visible.find((t) => t.id === ui.selectedId) ?? null;
+  const outOfView = useMemo(() => {
+    if (!selected || !scroll) return false;
+    const b = shapeBounds(selected.markup.shape);
+    return (
+      b.x + b.w < scroll.x ||
+      b.x > scroll.x + scroll.vw ||
+      b.y + b.h < scroll.y ||
+      b.y > scroll.y + scroll.vh
+    );
+  }, [selected, scroll]);
+
   /* ---------------- 版面 ---------------- */
-  const { width, height } = ui.device;
-  const scale =
-    ui.fit && containerWidth > 0 ? Math.min(1, (containerWidth - FIT_PADDING_PX) / width) : 1;
-  const viewport = frameViewport ?? { w: width, h: height };
+  const scale = ui.fit ? fitScale(containerSize, ui.device) : 1;
   const srcDoc = useMemo(
     () => injectAgent(pages[loadedPage] ?? '', agentSource, loadedPage),
     [pages, loadedPage, agentSource],
@@ -325,55 +276,92 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
         fit={ui.fit}
         onFit={ui.setFit}
         scale={scale}
-        showComments={ui.showComments}
-        onShowComments={ui.setShowComments}
+        showMarkups={ui.showMarkups}
+        onShowMarkups={ui.setShowMarkups}
         showResolved={ui.showResolved}
         onShowResolved={ui.setShowResolved}
         panelOpen={ui.panelOpen}
         onPanelOpen={ui.setPanelOpen}
-        threadCount={threads.length}
+        markupCount={markupCount}
         pages={pageInfos}
         pageId={readyPage ?? loadedPage}
         onPage={reloadFrame}
       />
       <div className="flex min-h-0 flex-1">
-        <div
-          ref={setContainerEl}
-          className="stage-grid relative min-w-0 flex-1 overflow-auto p-4"
-          data-testid="viewer-container"
-        >
+        <div className="relative min-w-0 flex-1">
           <div
-            className="relative mx-auto"
-            style={{ width: width * scale, height: height * scale }}
+            ref={setContainerEl}
+            className="stage-grid h-full overflow-auto p-4"
+            data-testid="viewer-container"
           >
-            <ExportSandboxFrame
-              key={frameKey}
-              ref={setIframe}
-              srcDoc={srcDoc}
-              width={width}
-              height={height}
-              scale={scale}
-            />
-            <ThreadLayer
-              threads={threads}
-              actions={READ_ONLY_ACTIONS}
-              createThread={rejectCreateThread}
-              actor={READ_ONLY_ACTOR}
-              pagePaths={pagePaths}
-              currentPageId={readyPage}
-              scale={scale}
-              frameViewport={viewport}
-              rects={rects}
-              results={results}
-              boundary={containerEl}
-              onScrollTo={scrollTo}
-            />
-            <FrameWatchdog
-              state={watchdog.state}
-              onStop={watchdog.stop}
-              onReload={() => reloadFrame(loadedPage)}
-            />
+            <div
+              className="relative mx-auto"
+              style={{ width: width * scale, height: height * scale }}
+            >
+              <ExportSandboxFrame
+                key={frameKey}
+                ref={setIframe}
+                srcDoc={srcDoc}
+                width={width}
+                height={height}
+                scale={scale}
+              />
+              <MarkupCanvas
+                threads={visible}
+                scroll={scroll ?? { x: 0, y: 0 }}
+                frameSize={{ w: width, h: height }}
+                scale={scale}
+                mode="interact"
+                tool="select"
+                color={ui.color}
+                stroke={ui.stroke}
+                selectedId={ui.selectedId}
+                canManage={cannotManage}
+                onSelect={ui.select}
+                onCreate={noop}
+                onMove={noop}
+                onScrollBy={(dx, dy) => send({ v: PROTOCOL_VERSION, type: 'scrollBy', dx, dy })}
+                onSelectedAnchor={setSelectedAnchorEl}
+                onRootEl={setCanvasEl}
+              />
+              {selected && (
+                <ThreadPopover
+                  thread={selected}
+                  referenceEl={selectedAnchorEl}
+                  boundary={containerEl}
+                  hidden={outOfView}
+                  actor={READ_ONLY_ACTOR}
+                  actions={READ_ONLY_ACTIONS}
+                  canDelete={false}
+                  onDeleteMarkup={noop}
+                  ignoreOutside={canvasEl}
+                  onClose={(reason) => {
+                    if (reason === 'outside') ui.select(null);
+                    else escape();
+                  }}
+                />
+              )}
+              <FrameWatchdog
+                state={watchdog.state}
+                onStop={watchdog.stop}
+                onReload={() => reloadFrame(loadedPage)}
+              />
+            </div>
           </div>
+          <WidthChips
+            threads={threads}
+            pageId={readyPage}
+            width={width}
+            showResolved={ui.showResolved}
+            onPick={(w, h) => {
+              const preset = DEVICE_PRESETS.find((p) => p.width === w);
+              ui.setDevice(
+                preset
+                  ? { presetId: preset.id, width: preset.width, height: preset.height }
+                  : { presetId: 'custom', width: w, height: h },
+              );
+            }}
+          />
           {toast && (
             <div
               role="status"
@@ -384,16 +372,12 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
           )}
         </div>
         {ui.panelOpen && (
-          <CommentPanel
-            items={items}
-            filters={ui.filters}
-            onFiltersChange={ui.setFilters}
+          <MarkupPanel
+            threads={threads}
             pages={pagePaths}
-            currentWidth={width}
-            openId={ui.openThreadId}
-            onSelect={selectThread}
-            actor={READ_ONLY_ACTOR}
-            actions={READ_ONLY_ACTIONS}
+            showResolved={ui.showResolved}
+            selectedId={ui.selectedId}
+            onSelect={jumpTo}
             onClose={() => ui.setPanelOpen(false)}
           />
         )}

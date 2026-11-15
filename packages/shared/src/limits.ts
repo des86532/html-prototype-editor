@@ -49,21 +49,12 @@ export const MESSAGE_LIMITS = {
   maxBytes: 64 * 1024,
   /** 120 則/秒（token bucket） */
   maxPerSecond: 120,
-  /** selector（css/xpath）≤ 1 KB */
-  maxSelectorLength: 1024,
-  /** textQuote（exact/prefix/suffix）≤ 512 字元 */
-  maxTextQuoteLength: 512,
-  maxSnapshotTextLength: 120,
-  maxLabelLength: 200,
-  maxRects: 2000,
-  maxAnchorsPerRequest: 500,
   maxStorageBlobBytes: 32 * 1024,
   maxDialogTextLength: 500,
 } as const;
 
 export const COMMENT_LIMITS = {
   maxBodyLength: 5000,
-  maxTagsPerThread: 5,
   maxGuestNameLength: 40,
 } as const;
 
@@ -80,7 +71,6 @@ export const FRAME_TIMINGS = {
   dialogToastThrottleMs: 1000,
 } as const;
 
-export const PIN_SIZE_PX = 28;
 export const POPOVER_WIDTH_PX = 320;
 
 export const DEVICE_PRESETS = [
@@ -104,8 +94,8 @@ export const CDN_PRESETS = [
   { id: 'tailwind-play', label: 'Tailwind Play CDN', origins: ['https://cdn.tailwindcss.com'] },
 ] as const;
 
-/** 評論 pin 的 8 色盤（依作者 id hash 選色）。 */
-export const PIN_PALETTE = [
+/** 作者的 8 色盤（依作者 id hash 選色）：標記編號 badge、線上頭像、游標。 */
+export const AUTHOR_PALETTE = [
   '#e5484d',
   '#f76b15',
   '#ffb224',
@@ -116,7 +106,27 @@ export const PIN_PALETTE = [
   '#12a594',
 ] as const;
 
+/** 標記顏色（紅、橙、黃、綠、藍、黑）。只允許這幾個值：直接寫進 SVG 屬性，不接受任意字串。 */
+export const MARKUP_COLORS = [
+  '#e5484d',
+  '#f76b15',
+  '#ffb224',
+  '#30a46c',
+  '#0091ff',
+  '#24211c',
+] as const;
+/** 線條粗細（細、中、粗）；文字工具用它對應字級（見 markup.ts 的 textFontSize）。 */
+export const MARKUP_STROKES = [2, 4, 8] as const;
+export const MARKUP_LIMITS = {
+  maxPoints: 2000,
+  maxTextLength: 200,
+  /** 頁面座標絕對值上限（CSS px） */
+  maxCoordinate: 100_000,
+  minViewport: 200,
+  maxViewport: 4000,
+} as const;
+
 export const PROTOCOL_VERSION = 1 as const;
 export const AGENT_PATH = '/__hpe/agent.v1.js';
 export const AGENT_MAX_GZIP_BYTES = 15 * 1024;
-export const ANNOTATIONS_SCHEMA_URL = 'https://hpe.example/schemas/annotations.v1.json';
+export const ANNOTATIONS_SCHEMA_URL = 'https://hpe.example/schemas/annotations.v2.json';

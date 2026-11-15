@@ -1,4 +1,4 @@
-import type { Anchor, Author, PrototypeVersion, Thread } from '@hpe/shared';
+import type { Author, Markup, PrototypeVersion, Thread } from '@hpe/shared';
 import type { ExportInput } from './types.js';
 
 export const NOW = new Date('2026-03-01T08:30:00.000Z');
@@ -6,20 +6,11 @@ export const NOW = new Date('2026-03-01T08:30:00.000Z');
 export const alice: Author = { kind: 'user', userId: 'u1', name: 'Alice' };
 export const guest: Author = { kind: 'guest', guestId: 'g1', name: 'Gus' };
 
-export function makeAnchor(over: Partial<Anchor> = {}): Anchor {
+export function makeMarkup(over: Partial<Markup> = {}): Markup {
   return {
     pageId: 'index.html',
-    kind: 'element',
-    viewport: { width: 1280, height: 800, dpr: 2, preset: 'desktop' },
-    selectors: {
-      css: 'main > button.cta',
-      xpath: '/html/body/main/button[1]',
-      textQuote: { exact: 'Buy now', prefix: 'Hero ', suffix: ' today' },
-      fingerprint: { tag: 'button', classes: ['cta'], textHash: 'abc', siblingIndex: 0, depth: 3 },
-      elementOffset: { x: 0.25, y: 0.5 },
-    },
-    fallback: { x: 10, y: 20, w: 100, h: 40 },
-    snapshot: { tag: 'button', text: 'Buy now' },
+    viewport: { width: 1440, height: 900 },
+    shape: { kind: 'rect', x: 10, y: 20, w: 100, h: 40, color: '#e5484d', stroke: 4 },
     ...over,
   };
 }
@@ -30,9 +21,8 @@ export function makeThread(n: number, over: Partial<Thread> = {}): Thread {
     id,
     versionId: 'v1',
     number: n,
-    anchor: makeAnchor(),
+    markup: makeMarkup(),
     status: 'open',
-    tags: ['bug'],
     createdBy: alice,
     createdAt: '2026-02-01T10:00:00.000Z',
     comments: [

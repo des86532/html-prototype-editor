@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import type { Anchor, Author, Comment, Thread, ThreadStatus, ThreadTag } from '@hpe/shared';
+import type { Author, Comment, Markup, Thread, ThreadStatus } from '@hpe/shared';
 import { api as defaultApi, type Api } from '@/lib/api';
 import { messageForError } from '@/lib/errorMessages';
 import type { ThreadActions } from './types';
@@ -36,14 +36,14 @@ export interface ThreadsApi {
   threads: Thread[];
   isLoading: boolean;
   error: string | null;
-  createThread: (anchor: Anchor, body: string, tags?: ThreadTag[]) => Promise<Thread>;
+  createMarkup: (markup: Markup) => Promise<Thread>;
   actions: ThreadActions;
 }
 
 let tmpSeq = 0;
 
 /**
- * threads 的 query 與 mutations。回覆／狀態／標籤／編輯／刪除都是樂觀更新，失敗時回復並丟出
+ * threads 的 query 與 mutations。建立／移動／刪除標記與回覆／狀態／編輯／刪除都是樂觀更新，失敗時回復並丟出
  * message 已是繁體中文的 Error。
  */
 export function useThreads(versionId: string | null, opts: UseThreadsOptions): ThreadsApi {
@@ -85,16 +85,40 @@ export function useThreads(versionId: string | null, opts: UseThreadsOptions): T
     const patchThread = (id: string, fn: (t: Thread) => Thread) => (l: Thread[]) =>
       l.map((t) => (t.id === id ? fn(t) : t));
 
-    const createThread = async (anchor: Anchor, body: string, tags?: ThreadTag[]) => {
-      const { thread } = await friendly(() =>
-        api.createThread(versionId!, { anchor, body, ...(tags && tags.length ? { tags } : {}) }),
-      );
-      write((l) => upsert(l, thread));
-      return thread;
+    const savingError = () => new Error('標記還在儲存中，請稍候再試。');
+    const isTmp = (t: Thread) => t.id.startsWith('tmp-');
+
+    const createMarkup = async (markup: Markup): Promise<Thread> => {
+      if (!me) throw new Error('請先填寫名字才能標記。');
+      const tmp: Thread = {
+        id: `tmp-${++tmpSeq}`,
+        versionId: versionId!,
+        number: null,
+        markup,
+        status: 'open',
+        createdBy: me,
+        createdAt: new Date().toISOString(),
+        comments: [],
+      };
+      write((l) => [...l, tmp]);
+      try {
+        const { thread } = await friendly(() => api.createThread(versionId!, { markup }));
+        write((l) =>
+          upsert(
+            l.filter((t) => t.id !== tmp.id),
+            thread,
+          ),
+        );
+        return thread;
+      } catch (e) {
+        write((l) => l.filter((t) => t.id !== tmp.id));
+        throw e;
+      }
     };
 
     const actions: ThreadActions = {
       onReply: (thread, body) => {
+        if (isTmp(thread)) throw savingError();
         if (!me) throw new Error('請先填寫名字才能留言。');
         const temp: Comment = {
           id: `tmp-${++tmpSeq}`,
@@ -115,12 +139,22 @@ export function useThreads(versionId: string | null, opts: UseThreadsOptions): T
           () => api.updateThread(thread.id, { status }),
           (r) => write((l) => upsert(l, r.thread)),
         ),
-      onSetTags: (thread, tags) =>
-        optimistic(
-          patchThread(thread.id, (t) => ({ ...t, tags })),
-          () => api.updateThread(thread.id, { tags }),
+      onMoveMarkup: (thread, shape) => {
+        if (isTmp(thread)) throw savingError();
+        return optimistic(
+          patchThread(thread.id, (t) => ({ ...t, markup: { ...t.markup, shape } })),
+          () => api.updateThread(thread.id, { shape }),
           (r) => write((l) => upsert(l, r.thread)),
-        ),
+        );
+      },
+      onDeleteThread: (thread) => {
+        if (isTmp(thread)) throw savingError();
+        return optimistic(
+          (l) => l.filter((t) => t.id !== thread.id),
+          () => api.deleteThread(thread.id),
+          () => undefined,
+        );
+      },
       onEditComment: (thread, commentId, body) =>
         optimistic(
           patchThread(thread.id, (t) => ({
@@ -134,15 +168,12 @@ export function useThreads(versionId: string | null, opts: UseThreadsOptions): T
         ),
       onDeleteComment: (thread, commentId) =>
         optimistic(
-          (l) =>
-            l.flatMap((t) => {
-              if (t.id !== thread.id) return [t];
-              const comments = t.comments.filter((c) => c.id !== commentId);
-              return comments.length === 0 ? [] : [{ ...t, comments }];
-            }),
+          patchThread(thread.id, (t) => ({
+            ...t,
+            comments: t.comments.filter((c) => c.id !== commentId),
+          })),
           () => api.deleteComment(commentId),
-          (r) =>
-            write((l) => (r.thread ? upsert(l, r.thread) : l.filter((t) => t.id !== thread.id))),
+          (r) => write((l) => upsert(l, r.thread)),
         ),
       onCopyLink: async (thread) => {
         const url = buildUrl?.(thread);
@@ -154,14 +185,14 @@ export function useThreads(versionId: string | null, opts: UseThreadsOptions): T
         }
       },
     };
-    return { createThread, actions };
+    return { createMarkup, actions };
   }, [qc, api, versionId, me, buildUrl]);
 
   return {
     threads: query.data ?? EMPTY,
     isLoading: query.isLoading,
     error: query.error ? messageForError(query.error) : null,
-    createThread: api_.createThread,
+    createMarkup: api_.createMarkup,
     actions: api_.actions,
   };
 }

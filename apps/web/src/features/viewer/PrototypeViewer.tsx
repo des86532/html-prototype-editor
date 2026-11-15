@@ -8,34 +8,38 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   DEVICE_PRESETS,
-  chunkBySize,
   FRAME_TIMINGS,
   MESSAGE_LIMITS,
   PROTOCOL_VERSION,
-  type Anchor,
+  shapeBounds,
   type FrameToParent,
+  type Markup,
+  type MarkupShape,
   type PrototypeVersion,
-  type Rect,
   type Thread,
 } from '@hpe/shared';
 import type { Api } from '@/lib/api';
 import { messageForError } from '@/lib/errorMessages';
 import { truncate } from '@/lib/format';
+import { useElementSize } from '@/lib/useElementSize';
 import { useLatest } from '@/lib/useLatest';
-import { CommentPanel, type PanelThread } from '@/features/comments/CommentPanel';
-import { canComment, type ThreadActor } from '@/features/comments/permissions';
+import { canComment, canManageMarkup, type ThreadActor } from '@/features/comments/permissions';
+import { ThreadPopover } from '@/features/comments/ThreadPopover';
 import { useViewerShortcuts } from '@/features/comments/shortcuts';
-import { useThreads } from '@/features/comments/useThreads';
+import { threadsKey, useThreads } from '@/features/comments/useThreads';
+import { MarkupCanvas } from '@/features/markup/MarkupCanvas';
+import { MarkupPanel } from '@/features/markup/MarkupPanel';
+import { MarkupTools } from '@/features/markup/MarkupTools';
+import { WidthChips } from '@/features/markup/WidthChips';
+import { useMarkupHistory } from '@/features/markup/useMarkupHistory';
 import { CropMarks } from '@/features/ui/CropMarks';
-import { DRAFT_ID, useUiStore, type Draft } from '@/state/uiStore';
+import { useUiStore, type DeviceState } from '@/state/uiStore';
 import { DeviceToolbar } from './DeviceToolbar';
 import { FrameWatchdog, useFrameWatchdog } from './FrameWatchdog';
-import { HoverHighlight } from './HoverHighlight';
 import { SandboxFrame } from './SandboxFrame';
-import { ThreadLayer } from './ThreadLayer';
-import { effectiveAnchorStatus, type AnchorResult } from './buildPins';
 import { fitScale } from './fitScale';
 import { frameSrc } from './frameSrc';
 import { useFrameBridge, type BridgeWarning } from './useFrameBridge';
@@ -48,7 +52,7 @@ export interface PrototypeViewerProps {
   buildThreadUrl: (thread: Thread) => string;
   /** 擁有者才傳：開啟 ExportDialog */
   onExport?: () => void;
-  /** 進入時自動開啟的討論串（`?thread=`） */
+  /** 進入時自動選取的標記（`?thread=`） */
   initialThreadId?: string | null;
   /** header 左側的額外內容（返回連結、分享按鈕…） */
   headerExtra?: ReactNode;
@@ -59,19 +63,21 @@ export interface PrototypeViewerProps {
 
 const TOAST_MS = 4000;
 
-function useElementSize(el: HTMLElement | null): { w: number; h: number } {
-  const [size, setSize] = useState({ w: 0, h: 0 });
-  useEffect(() => {
-    if (!el) return;
-    if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [el]);
-  return size;
+interface FrameScroll {
+  x: number;
+  y: number;
+  vw: number;
+  vh: number;
 }
 
-/** 單一 viewer：header（不受信任內容）、工具列、sandbox frame + overlay、留言面板。 */
+function deviceFor(width: number, height: number): DeviceState {
+  const preset = DEVICE_PRESETS.find((p) => p.width === width);
+  return preset
+    ? { presetId: preset.id, width: preset.width, height: preset.height }
+    : { presetId: 'custom', width, height };
+}
+
+/** 單一 viewer：header（不受信任內容）、工具列、sandbox frame + 標記 overlay、標記面板。 */
 export function PrototypeViewer({
   version,
   projectName,
@@ -92,51 +98,37 @@ export function PrototypeViewer({
   const [frameKey, setFrameKey] = useState(0);
   const [iframe, setIframe] = useState<HTMLIFrameElement | null>(null);
   const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
+  const [canvasEl, setCanvasEl] = useState<HTMLElement | null>(null);
+  const [selectedAnchorEl, setSelectedAnchorEl] = useState<HTMLElement | null>(null);
   const containerSize = useElementSize(containerEl);
   const toolbarId = useId();
+  const qc = useQueryClient();
 
-  // 每個 viewer 重置 UI 狀態（模式、草稿、卡片、篩選）。
+  // 每個 viewer 重置 UI 狀態（模式、工具、選取）。
   useEffect(() => {
     useUiStore.getState().reset();
     useUiStore.getState().setPageId(version.entryPage);
     return () => useUiStore.getState().reset();
   }, [version.id, version.entryPage]);
 
-  const { threads, createThread, actions } = useThreads(version.id, {
+  const { threads, createMarkup, actions } = useThreads(version.id, {
     api,
     me: actor.me,
     buildThreadUrl,
   });
-  const wrappedCreate = useCallback(
-    (anchor: Anchor, body: string) => createThread(anchor, body),
-    [createThread],
-  );
+  const history = useMarkupHistory(version.id);
+  const threadsRef = useLatest(threads);
 
   /* ---------------- frame 狀態 ---------------- */
   const [readyPage, setReadyPage] = useState<string | null>(null);
-  const [readyEpoch, setReadyEpoch] = useState(0);
-  const [rects, setRects] = useState<Record<string, Rect | null>>({});
-  const [results, setResults] = useState<Record<string, AnchorResult>>({});
-  const [frameViewport, setFrameViewport] = useState<{ w: number; h: number } | null>(null);
-  const [hover, setHover] = useState<{ rect: Rect | null; label: string }>({
-    rect: null,
-    label: '',
-  });
-  const [draftRect, setDraftRect] = useState<{ draft: Draft; rect: Rect | null } | null>(null);
+  const [scroll, setScroll] = useState<FrameScroll | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
 
   const storageRef = useRef<string | undefined>(undefined);
-  const resolvedRef = useRef<Set<string>>(new Set());
-  const lastDraftRef = useRef<Draft | null>(null);
-  const requestSeq = useRef(0);
-  const pendingOpenRef = useRef<string | null>(initialThreadId);
+  const pendingSelectRef = useRef<string | null>(initialThreadId);
   const lastToastAt = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const draftLatest = useLatest<Draft | null>(ui.draft);
-  const modeRef = useLatest(mode);
-  const writableRef = useLatest(writable);
-  const deviceRef = useLatest(ui.device);
 
   const showToast = useCallback((text: string) => {
     setToast(text);
@@ -149,6 +141,10 @@ export function PrototypeViewer({
     },
     [],
   );
+  const toastError = useCallback(
+    (e: unknown) => showToast(e instanceof Error ? e.message : messageForError(e)),
+    [showToast],
+  );
 
   const sendRef = useRef<ReturnType<typeof useFrameBridge>['send']>(() => false);
   const watchdogHandleRef = useRef<(m: FrameToParent) => void>(() => undefined);
@@ -159,68 +155,18 @@ export function PrototypeViewer({
       const send = sendRef.current;
       switch (msg.type) {
         case 'ready': {
-          resolvedRef.current = new Set();
-          lastDraftRef.current = null;
-          setRects({});
-          setResults({});
-          setDraftRect(null);
-          setHover({ rect: null, label: '' });
           setReadyPage(msg.pageId);
-          setReadyEpoch((n) => n + 1);
           useUiStore.getState().setPageId(msg.pageId);
           send({
             v: PROTOCOL_VERSION,
             type: 'init',
-            mode: modeRef.current,
             ...(storageRef.current !== undefined ? { storageSeed: storageRef.current } : {}),
           });
           break;
         }
-        case 'hover':
-          setHover({ rect: msg.rect, label: msg.label });
+        case 'scroll':
+          setScroll({ x: msg.x, y: msg.y, vw: msg.vw, vh: msg.vh });
           break;
-        case 'pick': {
-          if (!writableRef.current || modeRef.current !== 'comment') break;
-          const dev = deviceRef.current;
-          const anchor: Anchor = {
-            ...msg.draft,
-            viewport: {
-              ...msg.draft.viewport,
-              ...(dev.presetId !== 'custom' ? { preset: dev.presetId } : {}),
-            },
-          };
-          const s = useUiStore.getState();
-          if (!s.showComments) s.setShowComments(true);
-          s.setDraft({ anchor, rect: msg.rect });
-          setHover({ rect: null, label: '' });
-          break;
-        }
-        case 'anchorsResolved': {
-          setResults((prev) => {
-            const next = { ...prev };
-            for (const r of msg.results) {
-              if (r.threadId !== DRAFT_ID)
-                next[r.threadId] = { status: r.status, confidence: r.confidence };
-            }
-            return next;
-          });
-          setRects((prev) => {
-            const next = { ...prev };
-            for (const r of msg.results) if (r.threadId !== DRAFT_ID) next[r.threadId] = r.rect;
-            return next;
-          });
-          const d = msg.results.find((r) => r.threadId === DRAFT_ID);
-          if (d && draftLatest.current) setDraftRect({ draft: draftLatest.current, rect: d.rect });
-          break;
-        }
-        case 'geometry': {
-          setFrameViewport(msg.viewport);
-          setRects((prev) => ({ ...prev, ...msg.rects }));
-          if (DRAFT_ID in msg.rects && draftLatest.current) {
-            setDraftRect({ draft: draftLatest.current, rect: msg.rects[DRAFT_ID] ?? null });
-          }
-          break;
-        }
         case 'dialog': {
           const now = Date.now();
           if (now - lastToastAt.current < FRAME_TIMINGS.dialogToastThrottleMs) break;
@@ -234,11 +180,11 @@ export function PrototypeViewer({
           storageRef.current = msg.data;
           break;
         default:
-          // pong（watchdog 已處理）、navigateRequest（live viewer 忽略）、described（P1）
+          // pong（watchdog 已處理）、navigateRequest（live viewer 忽略）
           break;
       }
     },
-    [showToast, deviceRef, draftLatest, modeRef, writableRef],
+    [showToast],
   );
 
   const onDropped = useCallback((reason: BridgeWarning) => {
@@ -259,74 +205,6 @@ export function PrototypeViewer({
     return () => clearTimeout(t);
   }, [warning]);
 
-  /* ---------------- 模式同步 ---------------- */
-  useEffect(() => {
-    if (readyEpoch === 0) return;
-    send({ v: PROTOCOL_VERSION, type: 'setMode', mode });
-  }, [mode, readyEpoch, send]);
-
-  /* ---------------- resolve + track ---------------- */
-  const pageThreads = useMemo(
-    () => threads.filter((t) => readyPage !== null && t.anchor.pageId === readyPage),
-    [threads, readyPage],
-  );
-  const pageIdsKey = pageThreads.map((t) => t.id).join(',');
-  useEffect(() => {
-    if (readyEpoch === 0 || readyPage === null) return;
-    const todo: { threadId: string; anchor: Anchor }[] = [];
-    for (const t of pageThreads) {
-      if (!resolvedRef.current.has(t.id)) {
-        resolvedRef.current.add(t.id);
-        todo.push({ threadId: t.id, anchor: t.anchor });
-      }
-    }
-    const draft = ui.draft;
-    if (draft && lastDraftRef.current !== draft) {
-      todo.push({ threadId: DRAFT_ID, anchor: draft.anchor });
-    }
-    lastDraftRef.current = draft;
-    // 依序列化大小切批：訊息超過 64 KB 會被 agent 丟棄，評論多的頁面不能只靠筆數切。
-    for (const anchors of chunkBySize(todo)) {
-      send({
-        v: PROTOCOL_VERSION,
-        type: 'resolveAnchors',
-        requestId: String(++requestSeq.current),
-        anchors,
-      });
-    }
-    send({
-      v: PROTOCOL_VERSION,
-      type: 'trackAnchors',
-      threadIds: [...pageThreads.map((t) => t.id), ...(draft ? [DRAFT_ID] : [])].slice(
-        0,
-        MESSAGE_LIMITS.maxAnchorsPerRequest,
-      ),
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- pageIdsKey 代表 pageThreads 的 id 集合
-  }, [readyEpoch, readyPage, pageIdsKey, ui.draft, send]);
-
-  const layerRects = useMemo(() => {
-    const out: Record<string, Rect | null | undefined> = { ...rects };
-    out[DRAFT_ID] = draftRect && draftRect.draft === ui.draft ? draftRect.rect : undefined;
-    return out;
-  }, [rects, draftRect, ui.draft]);
-
-  const onDraftPromoted = useCallback(
-    (threadId: string) => {
-      const r = draftRect?.rect ?? null;
-      setRects((prev) => ({ ...prev, [threadId]: r }));
-      setResults((prev) => ({ ...prev, [threadId]: { status: 'exact', confidence: 1 } }));
-    },
-    [draftRect],
-  );
-
-  const scrollTo = useCallback(
-    (threadId: string) => {
-      send({ v: PROTOCOL_VERSION, type: 'scrollToAnchor', threadId });
-    },
-    [send],
-  );
-
   /* ---------------- 頁面 / 寬度 ---------------- */
   const reloadFrame = useCallback(
     (page: string) => {
@@ -334,119 +212,251 @@ export function PrototypeViewer({
       setFrameKey((k) => k + 1);
       watchdog.reset();
       setReadyPage(null);
-      setReadyEpoch(0);
-      setRects({});
-      setResults({});
+      setScroll(null);
     },
     [watchdog],
   );
 
-  const selectThread = useCallback(
-    (thread: Thread) => {
-      const s = useUiStore.getState();
-      const w = Math.round(thread.anchor.viewport.width);
-      if (w !== s.device.width) {
-        const preset = DEVICE_PRESETS.find((p) => p.width === w);
-        s.setDevice(
-          preset
-            ? { presetId: preset.id, width: preset.width, height: preset.height }
-            : {
-                presetId: 'custom',
-                width: w,
-                height: Math.round(thread.anchor.viewport.height) || s.device.height,
-              },
-        );
-      }
-      if (thread.anchor.pageId !== readyPage) {
-        pendingOpenRef.current = thread.id;
-        reloadFrame(thread.anchor.pageId);
-      } else {
-        scrollTo(thread.id);
-        s.openThread(thread.id);
-      }
-    },
-    [readyPage, reloadFrame, scrollTo],
+  const { width, height } = ui.device;
+
+  const visible = useMemo(
+    () =>
+      threads.filter(
+        (t) =>
+          ui.showMarkups &&
+          readyPage !== null &&
+          t.markup.pageId === readyPage &&
+          t.markup.viewport.width === width &&
+          (ui.showResolved || t.status === 'open' || t.id === ui.selectedId),
+      ),
+    [threads, ui.showMarkups, ui.showResolved, ui.selectedId, readyPage, width],
   );
 
-  // 等頁面切換完成、錨點解析後才開啟卡片（面板選取、`?thread=` 進入）。
+  const applyWidth = useCallback((w: number, h: number) => {
+    const s = useUiStore.getState();
+    if (w !== s.device.width) s.setDevice(deviceFor(w, h));
+  }, []);
+
+  /** 同頁：切寬度、捲到標記中央並選取。 */
+  const focusThread = useCallback(
+    (t: Thread) => {
+      const s = useUiStore.getState();
+      if (!s.showMarkups) s.setShowMarkups(true);
+      applyWidth(t.markup.viewport.width, t.markup.viewport.height);
+      const b = shapeBounds(t.markup.shape);
+      const vw = scroll?.vw ?? t.markup.viewport.width;
+      const vh = scroll?.vh ?? t.markup.viewport.height;
+      send({
+        v: PROTOCOL_VERSION,
+        type: 'scrollTo',
+        x: Math.max(0, b.x + b.w / 2 - vw / 2),
+        y: Math.max(0, b.y + b.h / 2 - vh / 2),
+      });
+      s.select(t.id);
+    },
+    [applyWidth, scroll, send],
+  );
+
+  const jumpTo = useCallback(
+    (t: Thread) => {
+      applyWidth(t.markup.viewport.width, t.markup.viewport.height);
+      if (t.markup.pageId !== readyPage) {
+        pendingSelectRef.current = t.id;
+        reloadFrame(t.markup.pageId);
+      } else {
+        focusThread(t);
+      }
+    },
+    [applyWidth, focusThread, readyPage, reloadFrame],
+  );
+
+  // 等頁面切換完成、agent 可以捲動後才選取（面板選取、`?thread=` 進入）。
   useEffect(() => {
-    const id = pendingOpenRef.current;
+    const id = pendingSelectRef.current;
     if (!id) return;
     const t = threads.find((x) => x.id === id);
-    if (!t) return;
-    if (readyPage === null) return;
-    if (t.anchor.pageId !== readyPage) {
-      // 目前頁面不是目標頁面（`?thread=` 進入）：切換過去。
-      pendingOpenRef.current = id;
-      reloadFrame(t.anchor.pageId);
+    if (!t || readyPage === null) return;
+    if (t.markup.pageId !== readyPage) {
+      reloadFrame(t.markup.pageId);
       return;
     }
-    if (results[id] === undefined) return;
-    pendingOpenRef.current = null;
-    scrollTo(id);
-    useUiStore.getState().openThread(id);
-  }, [threads, readyPage, results, scrollTo, reloadFrame]);
+    if (scroll === null) return;
+    pendingSelectRef.current = null;
+    focusThread(t);
+  }, [threads, readyPage, scroll, reloadFrame, focusThread]);
 
-  const items = useMemo<PanelThread[]>(
-    () =>
-      threads.map((thread) => ({
-        thread,
-        anchorStatus: effectiveAnchorStatus(thread, results, pagePaths, readyPage),
-      })),
-    [threads, results, pagePaths, readyPage],
+  /* ---------------- 標記操作 ---------------- */
+  const canManage = useCallback((t: Thread) => canManageMarkup(actor, t), [actor]);
+
+  const onCreate = useCallback(
+    (shape: MarkupShape) => {
+      if (readyPage === null) return;
+      const markup: Markup = {
+        pageId: readyPage,
+        viewport: { width: ui.device.width, height: ui.device.height },
+        shape,
+      };
+      const key = threadsKey(version.id);
+      const before = new Set((qc.getQueryData<Thread[]>(key) ?? []).map((t) => t.id));
+      const promise = createMarkup(markup);
+      const tmpId =
+        (qc.getQueryData<Thread[]>(key) ?? []).find(
+          (t) => t.id.startsWith('tmp-') && !before.has(t.id),
+        )?.id ?? null;
+      const autoSelect = shape.kind === 'rect' || shape.kind === 'arrow';
+      if (tmpId) {
+        history.push({ kind: 'create', threadId: tmpId });
+        if (autoSelect) useUiStore.getState().select(tmpId);
+      }
+      promise.then(
+        (t) => {
+          const s = useUiStore.getState();
+          if (tmpId) {
+            history.replaceId(tmpId, t.id);
+            if (s.selectedId === tmpId) s.select(t.id);
+          } else {
+            history.push({ kind: 'create', threadId: t.id });
+            if (autoSelect) s.select(t.id);
+          }
+        },
+        (e: unknown) => {
+          const s = useUiStore.getState();
+          if (tmpId && s.selectedId === tmpId) s.select(null);
+          toastError(e);
+        },
+      );
+    },
+    [
+      readyPage,
+      ui.device.width,
+      ui.device.height,
+      version.id,
+      qc,
+      createMarkup,
+      history,
+      toastError,
+    ],
+  );
+
+  const onMove = useCallback(
+    (t: Thread, shape: MarkupShape) => {
+      history.push({ kind: 'move', threadId: t.id, before: t.markup.shape });
+      void Promise.resolve(actions.onMoveMarkup(t, shape)).catch(toastError);
+    },
+    [actions, history, toastError],
+  );
+
+  const deleteMarkup = useCallback(
+    (t: Thread) => {
+      if (!canManageMarkup(actor, t)) return;
+      if (t.comments.length === 0) history.push({ kind: 'delete', markup: t.markup });
+      void Promise.resolve(actions.onDeleteThread(t)).catch(toastError);
+      useUiStore.getState().select(null);
+    },
+    [actor, actions, history, toastError],
+  );
+
+  const deleteSelected = useCallback(() => {
+    const id = useUiStore.getState().selectedId;
+    const t = threadsRef.current.find((x) => x.id === id);
+    if (!t || !canManageMarkup(actor, t)) return;
+    if (t.comments.length > 0) {
+      showToast('有留言的標記請從卡片刪除');
+      return;
+    }
+    deleteMarkup(t);
+  }, [actor, deleteMarkup, showToast, threadsRef]);
+
+  const undo = useCallback(() => {
+    for (;;) {
+      const e = history.undo();
+      if (!e) return;
+      if (e.kind === 'delete') {
+        createMarkup(e.markup).catch(toastError);
+        return;
+      }
+      const t = threadsRef.current.find((x) => x.id === e.threadId);
+      if (!t) continue;
+      if (e.kind === 'create') {
+        void Promise.resolve(actions.onDeleteThread(t)).catch(toastError);
+        const s = useUiStore.getState();
+        if (s.selectedId === t.id) s.select(null);
+      } else {
+        void Promise.resolve(actions.onMoveMarkup(t, e.before)).catch(toastError);
+      }
+      return;
+    }
+  }, [actions, createMarkup, history, threadsRef, toastError]);
+
+  const onScrollBy = useCallback(
+    (dx: number, dy: number) => {
+      send({ v: PROTOCOL_VERSION, type: 'scrollBy', dx, dy });
+    },
+    [send],
   );
 
   /* ---------------- 快捷鍵 ---------------- */
+  const focusBadge = useCallback((id: string) => {
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>(`[data-markup-id="${CSS.escape(id)}"]`)?.focus(),
+    );
+  }, []);
+
   const navigableIds = useMemo(
     () =>
-      items
-        .filter(
-          ({ thread, anchorStatus }) =>
-            thread.anchor.pageId === readyPage &&
-            (anchorStatus === 'exact' || anchorStatus === 'fuzzy' || anchorStatus === 'fallback') &&
-            (ui.showResolved || thread.status === 'open'),
-        )
-        .sort((a, b) => a.thread.number - b.thread.number)
-        .map((e) => e.thread.id),
-    [items, readyPage, ui.showResolved],
+      visible
+        .filter((t) => t.number !== null)
+        .sort((a, b) => (a.number ?? 0) - (b.number ?? 0))
+        .map((t) => t.id),
+    [visible],
   );
-  const closeCard = useCallback(() => {
-    const s = useUiStore.getState();
-    const id = s.openThreadId;
-    if (s.draft) s.clearDraft();
-    else s.openThread(null);
-    if (id) {
-      requestAnimationFrame(() =>
-        document.querySelector<HTMLElement>(`[data-pin-id="${CSS.escape(id)}"] button`)?.focus(),
-      );
-    }
-  }, []);
+
   useViewerShortcuts({
-    canComment: writable,
+    canMarkup: writable,
+    mode,
     navigableIds,
-    openId: ui.openThreadId,
-    hasDraft: ui.draft !== null,
+    selectedId: ui.selectedId,
     toggleMode: () => useUiStore.getState().toggleMode(),
-    toggleShowComments: () => useUiStore.getState().toggleShowComments(),
-    escape: closeCard,
-    openThread: (id) => {
-      useUiStore.getState().openThread(id);
-      scrollTo(id);
+    toggleShowMarkups: () => useUiStore.getState().toggleShowMarkups(),
+    escape: () => {
+      const s = useUiStore.getState();
+      if (s.selectedId !== null) {
+        const id = s.selectedId;
+        s.select(null);
+        focusBadge(id);
+        return true;
+      }
+      if (writable && s.mode === 'markup') {
+        s.setMode('interact');
+        return true;
+      }
+      return false;
     },
-    toggleResolveOpen: () => {
-      const t = threads.find((x) => x.id === ui.openThreadId);
-      if (!t) return;
-      void Promise.resolve(actions.onSetStatus(t, t.status === 'open' ? 'resolved' : 'open')).catch(
-        (e: unknown) => showToast(e instanceof Error ? e.message : messageForError(e)),
-      );
+    select: (id) => {
+      const t = threadsRef.current.find((x) => x.id === id);
+      if (t) focusThread(t);
     },
+    setTool: (tool) => useUiStore.getState().setTool(tool),
+    deleteSelected,
+    undo,
   });
 
+  /* ---------------- popover ---------------- */
+  const selected = ui.selectedId ? visible.find((t) => t.id === ui.selectedId) : undefined;
+  const outOfView = useMemo(() => {
+    if (!selected) return false;
+    const b = shapeBounds(selected.markup.shape);
+    const sx = scroll?.x ?? 0;
+    const sy = scroll?.y ?? 0;
+    const vw = scroll?.vw ?? width;
+    const vh = scroll?.vh ?? height;
+    return b.x + b.w < sx || b.x > sx + vw || b.y + b.h < sy || b.y > sy + vh;
+  }, [selected, scroll, width, height]);
+
   /* ---------------- 版面 ---------------- */
-  const { width, height } = ui.device;
   const scale = ui.fit ? fitScale(containerSize, ui.device) : 1;
-  const viewport = frameViewport ?? { w: width, h: height };
   const src = srcOverride ?? frameSrc(version.contentKey, loadedPage);
+  const markupCount = threads.filter((t) => t.number !== null).length;
 
   return (
     <div className="flex h-dvh flex-col bg-stage" data-testid="prototype-viewer">
@@ -462,8 +472,8 @@ export function PrototypeViewer({
           不受信任內容
         </span>
         <div className="ml-auto flex items-center gap-2">
-          {ui.toolbarCollapsed && mode === 'comment' && (
-            <span className="chip chip-accent">留言模式（C）</span>
+          {ui.toolbarCollapsed && mode === 'markup' && (
+            <span className="chip chip-accent">標記模式（C）</span>
           )}
           <button
             type="button"
@@ -487,14 +497,14 @@ export function PrototypeViewer({
           scale={scale}
           mode={mode}
           onMode={ui.setMode}
-          canComment={writable}
-          showComments={ui.showComments}
-          onShowComments={ui.setShowComments}
+          canMarkup={writable}
+          showMarkups={ui.showMarkups}
+          onShowMarkups={ui.setShowMarkups}
           showResolved={ui.showResolved}
           onShowResolved={ui.setShowResolved}
           panelOpen={ui.panelOpen}
           onPanelOpen={ui.setPanelOpen}
-          threadCount={threads.length}
+          markupCount={markupCount}
           pages={version.pages}
           pageId={readyPage ?? loadedPage}
           onPage={reloadFrame}
@@ -502,74 +512,109 @@ export function PrototypeViewer({
         />
       )}
       <div className="flex min-h-0 flex-1">
-        <div
-          ref={setContainerEl}
-          className="stage-grid relative min-w-0 flex-1 overflow-auto p-8"
-          data-testid="viewer-container"
-        >
+        <div className="relative min-w-0 flex-1">
           <div
-            className="relative mx-auto"
-            style={{ width: width * scale, height: height * scale }}
+            ref={setContainerEl}
+            className="stage-grid absolute inset-0 overflow-auto p-8"
+            data-testid="viewer-container"
           >
             <div
-              aria-hidden="true"
-              className="pointer-events-none absolute -top-7 left-0 font-mono text-[11px] whitespace-nowrap text-measure"
+              className="relative mx-auto"
+              style={{ width: width * scale, height: height * scale }}
             >
-              {width} × {height} · {Math.round(scale * 100)}%
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute -top-7 left-0 font-mono text-[11px] whitespace-nowrap text-measure"
+              >
+                {width} × {height} · {Math.round(scale * 100)}%
+              </div>
+              <CropMarks />
+              <SandboxFrame
+                key={frameKey}
+                ref={setIframe}
+                src={src}
+                width={width}
+                height={height}
+                scale={scale}
+              />
+              <MarkupCanvas
+                threads={visible}
+                scroll={{ x: scroll?.x ?? 0, y: scroll?.y ?? 0 }}
+                frameSize={{ w: width, h: height }}
+                scale={scale}
+                mode={mode}
+                tool={ui.tool}
+                color={ui.color}
+                stroke={ui.stroke}
+                selectedId={ui.selectedId}
+                canManage={canManage}
+                onSelect={ui.select}
+                onCreate={onCreate}
+                onMove={onMove}
+                onScrollBy={onScrollBy}
+                onSelectedAnchor={setSelectedAnchorEl}
+                onRootEl={setCanvasEl}
+              />
+              {selected && (
+                <ThreadPopover
+                  thread={selected}
+                  referenceEl={selectedAnchorEl}
+                  boundary={containerEl}
+                  hidden={outOfView}
+                  actor={actor}
+                  actions={actions}
+                  canDelete={canManage(selected)}
+                  onDeleteMarkup={() => deleteMarkup(selected)}
+                  ignoreOutside={canvasEl}
+                  onClose={(reason) => {
+                    const id = selected.id;
+                    useUiStore.getState().select(null);
+                    if (reason === 'escape') focusBadge(id);
+                  }}
+                />
+              )}
+              <FrameWatchdog
+                state={watchdog.state}
+                onStop={watchdog.stop}
+                onReload={() => reloadFrame(loadedPage)}
+              />
             </div>
-            <CropMarks />
-            <SandboxFrame
-              key={frameKey}
-              ref={setIframe}
-              src={src}
-              width={width}
-              height={height}
-              scale={scale}
-            />
-            {mode === 'comment' && (
-              <HoverHighlight rect={hover.rect} label={hover.label} scale={scale} />
+            {(toast || warning) && (
+              <div
+                role="status"
+                className="fixed bottom-4 left-1/2 z-50 max-w-md -translate-x-1/2 rounded-md bg-ink px-3 py-2 text-sm text-white shadow-lg"
+              >
+                {toast ?? warning}
+              </div>
             )}
-            <ThreadLayer
-              threads={threads}
-              actions={actions}
-              createThread={wrappedCreate}
-              actor={actor}
-              pagePaths={pagePaths}
-              currentPageId={readyPage}
-              scale={scale}
-              frameViewport={viewport}
-              rects={layerRects}
-              results={results}
-              boundary={containerEl}
-              onScrollTo={scrollTo}
-              onDraftPromoted={onDraftPromoted}
-            />
-            <FrameWatchdog
-              state={watchdog.state}
-              onStop={watchdog.stop}
-              onReload={() => reloadFrame(loadedPage)}
-            />
           </div>
-          {(toast || warning) && (
-            <div
-              role="status"
-              className="fixed bottom-4 left-1/2 z-50 max-w-md -translate-x-1/2 rounded-md bg-ink px-3 py-2 text-sm text-white shadow-lg"
-            >
-              {toast ?? warning}
-            </div>
+          {mode === 'markup' && (
+            <MarkupTools
+              tool={ui.tool}
+              onTool={ui.setTool}
+              color={ui.color}
+              onColor={ui.setColor}
+              stroke={ui.stroke}
+              onStroke={ui.setStroke}
+              canUndo={history.canUndo}
+              onUndo={undo}
+            />
           )}
+          <WidthChips
+            threads={threads}
+            pageId={readyPage}
+            width={width}
+            showResolved={ui.showResolved}
+            onPick={applyWidth}
+          />
         </div>
         {ui.panelOpen && (
-          <CommentPanel
-            items={items}
-            filters={ui.filters}
-            onFiltersChange={ui.setFilters}
+          <MarkupPanel
+            threads={threads}
             pages={pagePaths}
-            currentWidth={width}
-            openId={ui.openThreadId}
-            onSelect={selectThread}
-            actor={actor}
-            actions={actions}
+            showResolved={ui.showResolved}
+            selectedId={ui.selectedId}
+            onSelect={jumpTo}
             onClose={() => ui.setPanelOpen(false)}
           />
         )}

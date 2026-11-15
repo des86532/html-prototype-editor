@@ -34,6 +34,10 @@ describe('classifyLink (export mode)', () => {
     expect(c('/root.html')).toEqual({ action: 'navigate', pageId: 'root.html' });
     expect(c('a%20b.html', 'index.html')).toEqual({ action: 'navigate', pageId: 'a b.html' });
   });
+  it('maps directory links to index.html', () => {
+    expect(c('/orders/')).toEqual({ action: 'navigate', pageId: 'orders/index.html' });
+    expect(c('/')).toEqual({ action: 'navigate', pageId: 'index.html' });
+  });
   it('blocks absolute URLs, keeps hash links', () => {
     expect(c('https://evil.example/').action).toBe('block');
     expect(c('//evil.example/').action).toBe('block');

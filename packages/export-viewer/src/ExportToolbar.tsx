@@ -7,19 +7,19 @@ export interface ExportToolbarProps {
   fit: boolean;
   onFit: (v: boolean) => void;
   scale: number;
-  showComments: boolean;
-  onShowComments: (v: boolean) => void;
+  showMarkups: boolean;
+  onShowMarkups: (v: boolean) => void;
   showResolved: boolean;
   onShowResolved: (v: boolean) => void;
   panelOpen: boolean;
   onPanelOpen: (v: boolean) => void;
-  threadCount: number;
+  markupCount: number;
   pages: readonly PageInfo[];
   pageId: string | null;
   onPage: (path: string) => void;
 }
 
-/** 唯讀版工具列：裝置尺寸、縮放、頁面、顯示控制、留言面板。沒有 Comment 模式。 */
+/** 唯讀版工具列：裝置尺寸、縮放、頁面、顯示控制、標記面板。沒有標記模式。 */
 export function ExportToolbar(p: ExportToolbarProps) {
   return (
     <div
@@ -73,12 +73,12 @@ export function ExportToolbar(p: ExportToolbarProps) {
       <div role="group" aria-label="顯示" className="flex items-center gap-1">
         <button
           type="button"
-          aria-pressed={p.showComments}
-          title="顯示留言（Shift+C）"
+          aria-pressed={p.showMarkups}
+          title="顯示標記（Shift+C）"
           className="btn btn-secondary btn-sm btn-toggle"
-          onClick={() => p.onShowComments(!p.showComments)}
+          onClick={() => p.onShowMarkups(!p.showMarkups)}
         >
-          顯示留言
+          顯示標記
         </button>
         <button
           type="button"
@@ -95,7 +95,7 @@ export function ExportToolbar(p: ExportToolbarProps) {
           className="btn btn-secondary btn-sm btn-toggle"
           onClick={() => p.onPanelOpen(!p.panelOpen)}
         >
-          留言面板（{p.threadCount}）
+          標記面板（{p.markupCount}）
         </button>
       </div>
     </div>

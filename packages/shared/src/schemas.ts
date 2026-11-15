@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { COMMENT_LIMITS, MESSAGE_LIMITS, PROTOCOL_VERSION } from './limits.js';
+import {
+  COMMENT_LIMITS,
+  MARKUP_COLORS,
+  MARKUP_LIMITS,
+  MESSAGE_LIMITS,
+  PROTOCOL_VERSION,
+} from './limits.js';
 
 /** 規格第 7 節。zod schema 是單一事實來源，types.ts 由 z.infer 衍生。 */
 
@@ -8,62 +14,58 @@ export const IsoDateSchema = z.string().min(1).max(40);
 
 export const RoleSchema = z.enum(['owner', 'commenter', 'viewer']);
 export const ThreadStatusSchema = z.enum(['open', 'resolved']);
-export const ThreadTagSchema = z.enum(['bug', 'copy', 'design', 'question', 'suggestion']);
-export const AnchorStatusSchema = z.enum(['exact', 'fuzzy', 'hidden', 'fallback', 'orphaned']);
-export const ModeSchema = z.enum(['interact', 'comment']);
 
 const finite = z.number().finite();
 
-export const RectSchema = z.object({ x: finite, y: finite, w: finite, h: finite });
+/* ---------------- 標記（畫在頁面上的形狀） ---------------- */
 
-const selectorString = z.string().max(MESSAGE_LIMITS.maxSelectorLength);
+const coord = z
+  .number()
+  .finite()
+  .min(-MARKUP_LIMITS.maxCoordinate)
+  .max(MARKUP_LIMITS.maxCoordinate);
+const PointSchema = z.object({ x: coord, y: coord });
+const strokeStyle = {
+  color: z.enum(MARKUP_COLORS),
+  stroke: z.union([z.literal(2), z.literal(4), z.literal(8)]),
+};
+const polyline = z
+  .array(z.tuple([coord, coord]))
+  .min(2)
+  .max(MARKUP_LIMITS.maxPoints);
 
-export const AnchorSchema = z.object({
+export const MarkupShapeSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('rect'),
+    x: coord,
+    y: coord,
+    w: coord.positive(),
+    h: coord.positive(),
+    ...strokeStyle,
+  }),
+  z.object({ kind: z.literal('arrow'), from: PointSchema, to: PointSchema, ...strokeStyle }),
+  z.object({ kind: z.literal('pen'), points: polyline, ...strokeStyle }),
+  z.object({ kind: z.literal('highlighter'), points: polyline, ...strokeStyle }),
+  z.object({
+    kind: z.literal('text'),
+    x: coord,
+    y: coord,
+    text: z.string().trim().min(1).max(MARKUP_LIMITS.maxTextLength),
+    ...strokeStyle,
+  }),
+]);
+
+const viewportSide = z.number().int().min(MARKUP_LIMITS.minViewport).max(MARKUP_LIMITS.maxViewport);
+
+export const MarkupSchema = z.object({
+  /** bundle 內頁面路徑 */
   pageId: z.string().min(1).max(512),
-  kind: z.enum(['element', 'region', 'text']),
-  viewport: z.object({
-    width: finite,
-    height: finite,
-    dpr: finite,
-    preset: z.string().max(64).optional(),
-  }),
-  selectors: z.object({
-    dataAttr: z.object({ name: z.string().max(128), value: z.string().max(256) }).optional(),
-    css: selectorString.optional(),
-    xpath: selectorString.optional(),
-    textQuote: z
-      .object({
-        exact: z.string().max(256),
-        prefix: z.string().max(32),
-        suffix: z.string().max(32),
-      })
-      .optional(),
-    fingerprint: z.object({
-      tag: z.string().max(64),
-      classes: z.array(z.string().max(128)).max(64),
-      textHash: z.string().max(64),
-      siblingIndex: z.number().int(),
-      depth: z.number().int(),
-    }),
-    elementOffset: z.object({ x: finite, y: finite }),
-    regionSize: z.object({ w: finite, h: finite }).optional(),
-  }),
-  fallback: RectSchema,
-  stateHint: z
-    .object({ hash: z.string().max(512).optional(), inDialog: z.boolean().optional() })
-    .optional(),
-  snapshot: z.object({
-    tag: z.string().max(64),
-    text: z.string().max(MESSAGE_LIMITS.maxSnapshotTextLength),
-  }),
+  /** 畫的當下的裝置尺寸；只在 width 相同時顯示 */
+  viewport: z.object({ width: viewportSide, height: viewportSide }),
+  shape: MarkupShapeSchema,
 });
 
-export const ResolvedAnchorSchema = z.object({
-  threadId: IdSchema,
-  status: AnchorStatusSchema,
-  confidence: z.number().min(0).max(1),
-  rect: RectSchema.nullable(),
-});
+export const MarkupToolSchema = z.enum(['rect', 'arrow', 'pen', 'highlighter', 'text']);
 
 /* ---------------- postMessage 協定 v1 ---------------- */
 
@@ -73,30 +75,10 @@ export const ParentToFrameSchema = z.discriminatedUnion('type', [
   z.object({
     v,
     type: z.literal('init'),
-    mode: ModeSchema,
     storageSeed: z.string().max(MESSAGE_LIMITS.maxStorageBlobBytes).optional(),
   }),
-  z.object({ v, type: z.literal('setMode'), mode: ModeSchema }),
-  z.object({
-    v,
-    type: z.literal('resolveAnchors'),
-    requestId: z.string().max(64),
-    anchors: z
-      .array(z.object({ threadId: IdSchema, anchor: AnchorSchema }))
-      .max(MESSAGE_LIMITS.maxAnchorsPerRequest),
-  }),
-  z.object({
-    v,
-    type: z.literal('trackAnchors'),
-    threadIds: z.array(IdSchema).max(MESSAGE_LIMITS.maxAnchorsPerRequest),
-  }),
-  z.object({ v, type: z.literal('scrollToAnchor'), threadId: IdSchema }),
-  z.object({
-    v,
-    type: z.literal('describeAt'),
-    requestId: z.string().max(64),
-    point: z.object({ x: finite, y: finite }),
-  }),
+  z.object({ v, type: z.literal('scrollTo'), x: finite, y: finite }),
+  z.object({ v, type: z.literal('scrollBy'), dx: finite, dy: finite }),
   z.object({ v, type: z.literal('ping'), seq: z.number().int() }),
 ]);
 
@@ -107,28 +89,16 @@ export const FrameToParentSchema = z.discriminatedUnion('type', [
     agentVersion: z.string().max(32),
     pageId: z.string().max(512),
     hash: z.string().max(512),
-    docSize: z.object({ w: finite, h: finite }),
   }),
   z.object({
     v,
-    type: z.literal('hover'),
-    rect: RectSchema.nullable(),
-    label: z.string().max(MESSAGE_LIMITS.maxLabelLength),
-  }),
-  z.object({ v, type: z.literal('pick'), draft: AnchorSchema, rect: RectSchema }),
-  z.object({
-    v,
-    type: z.literal('anchorsResolved'),
-    requestId: z.string().max(64),
-    results: z.array(ResolvedAnchorSchema).max(MESSAGE_LIMITS.maxAnchorsPerRequest),
-  }),
-  z.object({
-    v,
-    type: z.literal('geometry'),
-    viewport: z.object({ w: finite, h: finite }),
-    rects: z
-      .record(IdSchema, RectSchema.nullable())
-      .refine((r) => Object.keys(r).length <= MESSAGE_LIMITS.maxRects, 'too many rects'),
+    type: z.literal('scroll'),
+    x: finite,
+    y: finite,
+    docW: finite,
+    docH: finite,
+    vw: finite,
+    vh: finite,
   }),
   z.object({ v, type: z.literal('navigateRequest'), pageId: z.string().max(512) }),
   z.object({
@@ -141,13 +111,6 @@ export const FrameToParentSchema = z.discriminatedUnion('type', [
     v,
     type: z.literal('storageSnapshot'),
     data: z.string().max(MESSAGE_LIMITS.maxStorageBlobBytes),
-  }),
-  z.object({
-    v,
-    type: z.literal('described'),
-    requestId: z.string().max(64),
-    draft: AnchorSchema,
-    rect: RectSchema,
   }),
   z.object({ v, type: z.literal('pong'), seq: z.number().int() }),
 ]);
@@ -171,17 +134,14 @@ export const CommentSchema = z.object({
 export const ThreadSchema = z.object({
   id: IdSchema,
   versionId: IdSchema,
-  number: z.number().int().positive(),
-  anchor: AnchorSchema,
+  /** 第一則說明送出時才編號；沒有說明的標記為 null */
+  number: z.number().int().positive().nullable(),
+  markup: MarkupSchema,
   status: ThreadStatusSchema,
-  tags: z.array(ThreadTagSchema).max(COMMENT_LIMITS.maxTagsPerThread),
   createdBy: AuthorSchema,
   createdAt: IsoDateSchema,
   resolvedAt: IsoDateSchema.optional(),
   comments: z.array(CommentSchema),
-  carriedFrom: z
-    .object({ threadId: IdSchema, versionId: IdSchema, resolution: AnchorStatusSchema })
-    .optional(),
 });
 
 export const PageInfoSchema = z.object({ path: z.string(), title: z.string().nullable() });
@@ -260,9 +220,8 @@ export const UpdateVersionBodySchema = z.object({
 });
 
 export const CreateThreadBodySchema = z.object({
-  anchor: AnchorSchema,
-  body: z.string().trim().min(1).max(COMMENT_LIMITS.maxBodyLength),
-  tags: z.array(ThreadTagSchema).max(COMMENT_LIMITS.maxTagsPerThread).optional(),
+  markup: MarkupSchema,
+  body: z.string().trim().min(1).max(COMMENT_LIMITS.maxBodyLength).optional(),
 });
 
 export const CreateCommentBodySchema = z.object({
@@ -272,9 +231,9 @@ export const CreateCommentBodySchema = z.object({
 export const UpdateThreadBodySchema = z
   .object({
     status: ThreadStatusSchema.optional(),
-    tags: z.array(ThreadTagSchema).max(COMMENT_LIMITS.maxTagsPerThread).optional(),
+    shape: MarkupShapeSchema.optional(),
   })
-  .refine((b) => b.status !== undefined || b.tags !== undefined, 'empty patch');
+  .refine((b) => b.status !== undefined || b.shape !== undefined, 'empty patch');
 
 export const UpdateCommentBodySchema = CreateCommentBodySchema;
 

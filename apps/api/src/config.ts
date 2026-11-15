@@ -25,7 +25,7 @@ export interface RateLimitRule {
 }
 
 export type RateLimitName =
-  'authRequest' | 'shareOpen' | 'guestIdentity' | 'commentWrite' | 'cspReport';
+  'authRequest' | 'shareOpen' | 'guestIdentity' | 'commentWrite' | 'markupWrite' | 'cspReport';
 
 export type RateLimitConfig = Record<RateLimitName, RateLimitRule>;
 
@@ -34,6 +34,8 @@ export const DEFAULT_RATE_LIMITS: RateLimitConfig = {
   shareOpen: { capacity: 60, refillPerSecond: 1 },
   guestIdentity: { capacity: 10, refillPerSecond: 10 / 60 },
   commentWrite: { capacity: 30, refillPerSecond: 0.5 },
+  // 畫筆一筆就是一次 POST，額度要比留言寬
+  markupWrite: { capacity: 120, refillPerSecond: 2 },
   cspReport: { capacity: 100, refillPerSecond: 5 },
 };
 

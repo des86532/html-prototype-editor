@@ -1,8 +1,6 @@
 import type {
-  Anchor,
   CreateShareLinkResponse,
   CreateVersionJsonBody,
-  DeleteCommentResponse,
   ExportEstimateResponse,
   ExportFormat,
   ExportQuery,
@@ -16,7 +14,8 @@ import type {
   ThreadResponse,
   ThreadsResponse,
   ThreadStatus,
-  ThreadTag,
+  Markup,
+  MarkupShape,
   VersionDetailResponse,
   VersionResponse,
 } from '@hpe/shared';
@@ -48,12 +47,6 @@ export function createApi(c: ApiClient) {
       if (entryPage) form.append('entryPage', entryPage);
       return c.request<VersionResponse>('createVersion', { params: { id: projectId }, form });
     },
-    /** 再匯入 Review Package ZIP（multipart，欄位名稱 `file`）。 */
-    importPackage: (projectId: string, file: File) => {
-      const form = new FormData();
-      form.append('file', file, file.name);
-      return c.request<VersionResponse>('importPackage', { params: { id: projectId }, form });
-    },
     getVersion: (id: string) => c.request<VersionDetailResponse>('getVersion', { params: { id } }),
     updateVersion: (id: string, body: { entryPage?: string; cdnAllowlist?: string[] }) =>
       c.request<VersionResponse>('updateVersion', { params: { id }, json: body }),
@@ -63,17 +56,16 @@ export function createApi(c: ApiClient) {
 
     listThreads: (versionId: string) =>
       c.request<ThreadsResponse>('listThreads', { params: { id: versionId } }),
-    createThread: (versionId: string, body: { anchor: Anchor; body: string; tags?: ThreadTag[] }) =>
+    createThread: (versionId: string, body: { markup: Markup; body?: string }) =>
       c.request<ThreadResponse>('createThread', { params: { id: versionId }, json: body }),
-    updateThread: (id: string, body: { status?: ThreadStatus; tags?: ThreadTag[] }) =>
+    updateThread: (id: string, body: { status?: ThreadStatus; shape?: MarkupShape }) =>
       c.request<ThreadResponse>('updateThread', { params: { id }, json: body }),
     deleteThread: (id: string) => c.request<void>('deleteThread', { params: { id } }),
     createComment: (threadId: string, body: string) =>
       c.request<ThreadResponse>('createComment', { params: { id: threadId }, json: { body } }),
     updateComment: (id: string, body: string) =>
       c.request<ThreadResponse>('updateComment', { params: { id }, json: { body } }),
-    deleteComment: (id: string) =>
-      c.request<DeleteCommentResponse>('deleteComment', { params: { id } }),
+    deleteComment: (id: string) => c.request<ThreadResponse>('deleteComment', { params: { id } }),
 
     listShareLinks: (projectId: string) =>
       c.request<ShareLinksResponse>('listShareLinks', { params: { id: projectId } }),

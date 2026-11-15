@@ -94,10 +94,8 @@ describe('ApiClient', () => {
           headers: { 'content-disposition': 'attachment; filename="review-a-v1.html"' },
         }),
     );
-    const r = await api.exportVersion('v1', 'html', { status: 'open', tag: 'bug' });
-    expect(fetchImpl.mock.calls[0]![0]).toBe(
-      'http://api.test/versions/v1/export/html?status=open&tag=bug',
-    );
+    const r = await api.exportVersion('v1', 'html', { status: 'open' });
+    expect(fetchImpl.mock.calls[0]![0]).toBe('http://api.test/versions/v1/export/html?status=open');
     expect(r.filename).toBe('review-a-v1.html');
     expect(await r.blob.text()).toBe('x');
   });

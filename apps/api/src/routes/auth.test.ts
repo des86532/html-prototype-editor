@@ -317,6 +317,7 @@ describe('錯誤格式', () => {
           shareOpen: { capacity: 100, refillPerSecond: 100 },
           guestIdentity: { capacity: 100, refillPerSecond: 100 },
           commentWrite: { capacity: 100, refillPerSecond: 100 },
+          markupWrite: { capacity: 100, refillPerSecond: 100 },
           cspReport: { capacity: 100, refillPerSecond: 100 },
         },
       },

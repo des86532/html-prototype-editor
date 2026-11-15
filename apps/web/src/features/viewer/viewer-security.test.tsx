@@ -32,6 +32,13 @@ describe('FrameGate', () => {
       reason: 'schema',
     });
     expect(gate.check({ source, data: 'string' })).toEqual({ ok: false, reason: 'schema' });
+    // scroll 欄位型別錯誤、已移除的訊息型別
+    const badScroll = { v: 1, type: 'scroll', x: 0, y: 0, docW: '800', docH: 1, vw: 1, vh: 1 };
+    expect(gate.check({ source, data: badScroll })).toEqual({ ok: false, reason: 'schema' });
+    expect(gate.check({ source, data: { v: 1, type: 'geometry' } })).toEqual({
+      ok: false,
+      reason: 'schema',
+    });
   });
 
   it('rate limits bursts to 120/s and recovers after the cooldown', () => {
@@ -73,7 +80,6 @@ describe('useFrameWatchdog', () => {
     agentVersion: '1',
     pageId: 'index.html',
     hash: '',
-    docSize: { w: 1, h: 1 },
   };
 
   it('masks the frame when no ready arrives within 1.5s of load (frame navigated away)', () => {

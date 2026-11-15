@@ -23,11 +23,3 @@ export function truncate(text: string, max: number): string {
   const chars = Array.from(text);
   return chars.length <= max ? text : `${chars.slice(0, max).join('')}…`;
 }
-
-export const TAG_LABELS = {
-  bug: 'Bug',
-  copy: '文案',
-  design: '設計',
-  question: '問題',
-  suggestion: '建議',
-} as const;

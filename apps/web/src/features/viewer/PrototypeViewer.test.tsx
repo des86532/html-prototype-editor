@@ -1,11 +1,11 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FrameToParent, PrototypeVersion } from '@hpe/shared';
 import type { Api } from '@/lib/api';
 import { useUiStore } from '@/state/uiStore';
-import { alice, makeAnchor, makeThread } from '@/test-utils/fixtures';
+import { alice, bob, makeMarkup, makeThread } from '@/test-utils/fixtures';
 import { PrototypeViewer, type PrototypeViewerProps } from './PrototypeViewer';
 
 const version: PrototypeVersion = {
@@ -69,7 +69,17 @@ const ready = (pageId = 'index.html'): FrameToParent => ({
   agentVersion: '1',
   pageId,
   hash: '',
-  docSize: { w: 1440, h: 3000 },
+});
+
+const scrollMsg = (y: number): FrameToParent => ({
+  v: 1,
+  type: 'scroll',
+  x: 0,
+  y,
+  docW: 1440,
+  docH: 3000,
+  vw: 1440,
+  vh: 900,
 });
 
 beforeEach(() => useUiStore.getState().reset());
@@ -97,101 +107,77 @@ describe('PrototypeViewer', () => {
     useUiStore.getState().setToolbarCollapsed(false);
   });
 
-  it('on ready: init → resolveAnchors for the page’s threads → trackAnchors', async () => {
-    const other = makeThread(2, { anchor: makeAnchor({ pageId: 'about.html' }) });
-    const { fromFrame, sent, api } = mount({}, [t1, other]);
+  it('on ready: sends init without a mode and never sends comment text into the frame', async () => {
+    const { fromFrame, sent, api } = mount();
     await waitFor(() => expect(api.listThreads).toHaveBeenCalled());
     fromFrame(ready());
-    await waitFor(() => expect(sent().map((m) => m.type)).toContain('trackAnchors'));
+    await waitFor(() => expect(sent().map((m) => m.type)).toContain('init'));
     const msgs = sent();
-    expect(msgs[0]).toMatchObject({ type: 'init', mode: 'interact' });
-    const resolve = msgs.find((m) => m.type === 'resolveAnchors') as unknown as {
-      anchors: { threadId: string }[];
-    };
-    expect(resolve.anchors.map((a) => a.threadId)).toEqual(['t1']);
-    const track = msgs.find((m) => m.type === 'trackAnchors') as unknown as { threadIds: string[] };
-    expect(track.threadIds).toEqual(['t1']);
-    // comment bodies / authors never cross into the frame
+    expect(msgs[0]).toMatchObject({ type: 'init' });
+    expect(msgs[0]).not.toHaveProperty('mode');
     expect(JSON.stringify(msgs)).not.toContain('comment 1');
     expect(JSON.stringify(msgs)).not.toContain('Alice');
   });
 
-  it('draws a pin from anchorsResolved and moves it on geometry updates', async () => {
-    const { fromFrame, api } = mount();
+  it('updates the markup svg viewBox from scroll messages and only shows this page/width', async () => {
+    const other = makeThread(2, { markup: makeMarkup({ pageId: 'about.html' }) });
+    const { fromFrame, api } = mount({}, [t1, other]);
     await waitFor(() => expect(api.listThreads).toHaveBeenCalled());
     fromFrame(ready());
-    fromFrame({
-      v: 1,
-      type: 'anchorsResolved',
-      requestId: '1',
-      results: [
-        { threadId: 't1', status: 'exact', confidence: 1, rect: { x: 100, y: 100, w: 100, h: 40 } },
-      ],
-    });
-    const pin = await screen.findByTestId('pin-t1');
-    const y0 = Number(pin.dataset.y);
-    fromFrame({
-      v: 1,
-      type: 'geometry',
-      viewport: { w: 1440, h: 900 },
-      rects: { t1: { x: 100, y: 50, w: 100, h: 40 } },
-    });
-    await waitFor(() =>
-      expect(Number(screen.getByTestId('pin-t1').dataset.y)).toBeCloseTo(y0 - 50),
-    );
+    fromFrame(scrollMsg(0));
+    const svg = await screen.findByTestId('markup-svg');
+    expect(svg).toHaveAttribute('viewBox', '0 0 1440 900');
+    fromFrame(scrollMsg(200));
+    await waitFor(() => expect(svg).toHaveAttribute('viewBox', '0 200 1440 900'));
+    expect(document.querySelectorAll('[data-markup-id]')).toHaveLength(1);
+    expect(document.querySelector('[data-markup-id="t1"]')).not.toBeNull();
   });
 
-  it('comment mode: C key sends setMode; a pick creates the draft pin + composer; interact mode ignores picks', async () => {
+  it('markup mode: C key toggles it and shows the tool palette; interact mode hides it', async () => {
     const user = userEvent.setup();
-    const { fromFrame, sent } = mount();
-    fromFrame(ready());
-    const pick: FrameToParent = {
-      v: 1,
-      type: 'pick',
-      draft: makeAnchor(),
-      rect: { x: 200, y: 300, w: 60, h: 20 },
-    };
-    fromFrame(pick);
-    expect(screen.queryByTestId('pin-draft')).toBeNull(); // interact mode
+    mount();
+    expect(screen.queryByRole('toolbar', { name: '標記工具' })).toBeNull();
     await user.keyboard('c');
-    expect(useUiStore.getState().mode).toBe('comment');
-    await waitFor(() =>
-      expect(sent().some((m) => m.type === 'setMode' && m.mode === 'comment')).toBe(true),
-    );
-    fromFrame(pick);
-    expect(await screen.findByTestId('pin-draft')).toBeInTheDocument();
-    expect(await screen.findByRole('dialog', { name: '新增留言' })).toBeInTheDocument();
-    // the draft is tracked so it follows scrolling
-    await waitFor(() =>
-      expect(
-        sent().some(
-          (m) => m.type === 'trackAnchors' && (m.threadIds as string[]).includes('__draft__'),
-        ),
-      ).toBe(true),
-    );
+    expect(useUiStore.getState().mode).toBe('markup');
+    expect(screen.getByRole('toolbar', { name: '標記工具' })).toBeInTheDocument();
+    await user.keyboard('r');
+    expect(useUiStore.getState().tool).toBe('rect');
+    await user.keyboard('{Escape}');
+    expect(useUiStore.getState().mode).toBe('interact');
   });
 
-  it('viewer role: Comment mode is disabled and C does nothing', async () => {
+  it('viewer role: 標記 mode is disabled and C does nothing', async () => {
     const user = userEvent.setup();
     mount({ actor: { me: null, role: 'viewer' } });
-    expect(screen.getByRole('button', { name: /^Comment/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^標記（C）/ })).toBeDisabled();
     await user.keyboard('c');
     expect(useUiStore.getState().mode).toBe('interact');
   });
 
-  it('toolbar: 顯示留言 / 顯示已解決 / 留言面板 toggles', async () => {
+  it('a guest without edit rights cannot manage others’ markups', async () => {
+    const { fromFrame, api } = mount({ actor: { me: bob, role: 'commenter' } });
+    await waitFor(() => expect(api.listThreads).toHaveBeenCalled());
+    fromFrame(ready());
+    fromFrame(scrollMsg(0));
+    const badge = await screen.findByRole('button', { name: /標記 #1/ });
+    fireEvent.click(badge);
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '刪除標記' })).toBeNull();
+  });
+
+  it('toolbar: 顯示標記 / 顯示已解決 / 標記面板 toggles', async () => {
     const user = userEvent.setup();
     mount();
     expect(screen.getByRole('button', { name: '顯示已解決' })).toHaveAttribute(
       'aria-pressed',
       'false',
     );
-    expect(screen.queryByTestId('comment-panel')).toBeNull();
-    await user.click(screen.getByRole('button', { name: /^留言面板/ }));
-    expect(screen.getByTestId('comment-panel')).toBeInTheDocument();
+    expect(screen.queryByTestId('markup-panel')).toBeNull();
+    await user.click(screen.getByRole('button', { name: /^標記面板/ }));
+    expect(screen.getByTestId('markup-panel')).toBeInTheDocument();
     await user.keyboard('{Shift>}C{/Shift}');
-    expect(useUiStore.getState().showComments).toBe(false);
-    expect(screen.getByRole('button', { name: '顯示留言' })).toHaveAttribute(
+    expect(useUiStore.getState().showMarkups).toBe(false);
+    expect(screen.getByRole('button', { name: '顯示標記' })).toHaveAttribute(
       'aria-pressed',
       'false',
     );

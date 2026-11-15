@@ -2,7 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildAnnotationsDocument } from '../../exporter/src/json';
-import { makeAnchor, makeInput, makeThread } from '../../exporter/src/fixtures';
+import { makeInput, makeMarkup, makeThread } from '../../exporter/src/fixtures';
 import type { SingleFilePayload } from '@hpe/exporter/browser';
 import { ExportViewer } from './ExportViewer';
 
@@ -11,7 +11,7 @@ import { ExportViewer } from './ExportViewer';
 const threads = [
   makeThread(1),
   makeThread(2, { status: 'resolved', resolvedAt: '2026-02-02T00:00:00Z' }),
-  makeThread(3, { anchor: makeAnchor({ pageId: 'pricing.html' }) }),
+  makeThread(3, { markup: makeMarkup({ pageId: 'pricing.html' }) }),
 ];
 const payload: SingleFilePayload = {
   format: 'hpe-single-file',
@@ -48,15 +48,16 @@ describe('ExportViewer', () => {
     );
   });
 
-  it('is read-only: no Comment mode button, panel lists threads and filters apply', () => {
+  it('is read-only: no markup mode button, panel lists numbered markups', () => {
     act(() => root.render(<ExportViewer payload={payload} />));
-    expect(host.textContent).not.toContain('Comment');
+    expect(host.textContent).not.toContain('標記（C）');
     expect(host.textContent).toContain('唯讀匯出檔');
     const panelBtn = [...host.querySelectorAll('button')].find((b) =>
-      b.textContent?.startsWith('留言面板'),
+      b.textContent?.startsWith('標記面板'),
     )!;
     expect(panelBtn.textContent).toContain('（3）');
     act(() => panelBtn.click());
+    expect(host.querySelector('[data-testid="markup-panel"]')).not.toBeNull();
     expect(host.textContent).toContain('first 1');
     expect(host.querySelector('textarea')).toBeNull();
   });

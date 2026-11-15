@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildMarkdown, escapeMarkdown, toBlockquote } from './markdown.js';
-import { HOSTILE_BODIES, makeAnchor, makeInput, makeThread } from './fixtures.js';
+import { HOSTILE_BODIES, makeMarkup, makeInput, makeThread } from './fixtures.js';
 
 describe('escapeMarkdown', () => {
   it('escapes every markdown control character', () => {
@@ -52,13 +52,13 @@ describe('toBlockquote', () => {
 describe('buildMarkdown', () => {
   it('groups by page with pin numbering and metadata', () => {
     const t12 = makeThread(12, {
-      tags: ['bug', 'copy'],
       status: 'resolved',
       resolvedAt: '2026-02-02T00:00:00Z',
     });
-    const t2 = makeThread(2, { anchor: makeAnchor({ pageId: 'pricing.html' }) });
+    const t2 = makeThread(2, { markup: makeMarkup({ pageId: 'pricing.html' }) });
     const t1 = makeThread(1);
-    const md = buildMarkdown(makeInput([t12, t2, t1]));
+    const bare = makeThread(3, { number: null, comments: [] });
+    const md = buildMarkdown(makeInput([t12, t2, t1, bare]));
     const iHome = md.indexOf('## 頁面：index\\.html');
     const iPricing = md.indexOf('## 頁面：pricing\\.html');
     expect(iHome).toBeGreaterThan(-1);
@@ -66,11 +66,12 @@ describe('buildMarkdown', () => {
     expect(md.indexOf('### #1')).toBeLessThan(md.indexOf('### #12'));
     expect(md.indexOf('### #12')).toBeLessThan(iPricing);
     expect(md).toContain('- 狀態：已解決');
-    expect(md).toContain('- 標籤：bug, copy');
     expect(md).toContain('- 作者：Alice');
-    expect(md).toContain('- Breakpoint：1280px \\(desktop\\)');
-    expect(md).toContain('- 元素：\\<button\\> "Buy now"');
-    expect(md).toContain('Selector：main \\> button\\.cta');
+    expect(md).toContain('- 寬度：1440×900px');
+    expect(md).toContain('- 標記：矩形，位置 10,20、100×40（頁面座標）');
+    expect(md).toContain('說明');
+    expect(md).toContain('標記匯出');
+    expect(md).toContain('另有 1 個未附說明的標記。');
     expect(md).toContain('回覆 1');
     expect(md).toContain('> first 1');
   });
@@ -79,9 +80,15 @@ describe('buildMarkdown', () => {
     const threads = HOSTILE_BODIES.map((body, i) =>
       makeThread(i + 1, {
         createdBy: { kind: 'guest', guestId: 'g', name: '<script>x</script>' },
-        anchor: makeAnchor({
-          snapshot: { tag: 'a', text: '[x](javascript:alert(1))\n# h' },
-          selectors: { ...makeAnchor().selectors, css: '</script><script>' },
+        markup: makeMarkup({
+          shape: {
+            kind: 'text',
+            x: 0,
+            y: 0,
+            text: '[x](javascript:alert(1))\n# h',
+            color: '#e5484d',
+            stroke: 4,
+          },
         }),
         comments: [
           {

@@ -1,21 +1,14 @@
 import { create } from 'zustand';
 import {
-  DEFAULT_THREAD_FILTERS,
   DEVICE_PRESETS,
-  type Anchor,
-  type Mode,
-  type Rect,
-  type ThreadFilters,
+  MARKUP_COLORS,
+  type MarkupColor,
+  type MarkupStroke,
+  type MarkupTool,
 } from '@hpe/shared';
 
-/** 草稿：使用者在 Comment 模式單擊後、尚未送出的 pin（不寫入 API）。 */
-export interface Draft {
-  anchor: Anchor;
-  /** 建立當下 agent 回報的 viewport 座標 rect */
-  rect: Rect;
-}
-
-export const DRAFT_ID = '__draft__';
+/** interact：操作 prototype；markup：在 prototype 上畫標記。 */
+export type ViewerMode = 'interact' | 'markup';
 
 export interface DeviceState {
   /** DEVICE_PRESETS 的 id，或 'custom' */
@@ -41,13 +34,15 @@ function readToolbarCollapsed(): boolean {
 }
 
 export interface UiState {
-  mode: Mode;
-  showComments: boolean;
+  mode: ViewerMode;
+  tool: MarkupTool | 'select';
+  color: MarkupColor;
+  stroke: MarkupStroke;
+  showMarkups: boolean;
   showResolved: boolean;
   panelOpen: boolean;
-  openThreadId: string | null;
-  draft: Draft | null;
-  filters: ThreadFilters;
+  /** 目前選取（開啟卡片）的標記 id */
+  selectedId: string | null;
   device: DeviceState;
   /** 縮放到符合畫面 */
   fit: boolean;
@@ -56,18 +51,17 @@ export interface UiState {
   /** agent 回報的目前頁面（bundle 路徑） */
   pageId: string | null;
 
-  setMode(mode: Mode): void;
+  setMode(mode: ViewerMode): void;
   toggleMode(): void;
-  setShowComments(v: boolean): void;
-  toggleShowComments(): void;
+  setTool(tool: MarkupTool | 'select'): void;
+  setColor(color: MarkupColor): void;
+  setStroke(stroke: MarkupStroke): void;
+  /** 選取標記（同時最多一個）。null = 取消選取。 */
+  select(id: string | null): void;
+  setShowMarkups(v: boolean): void;
+  toggleShowMarkups(): void;
   setShowResolved(v: boolean): void;
   setPanelOpen(v: boolean): void;
-  /** 開啟某張卡片（同時最多一張；會捨棄草稿）。null = 關閉。 */
-  openThread(id: string | null): void;
-  /** 建立／取代草稿（會關閉已開啟的卡片）。 */
-  setDraft(draft: Draft): void;
-  clearDraft(): void;
-  setFilters(patch: Partial<ThreadFilters>): void;
   setDevice(device: DeviceState): void;
   setFit(v: boolean): void;
   setToolbarCollapsed(v: boolean): void;
@@ -76,38 +70,34 @@ export interface UiState {
 }
 
 const initial = {
-  mode: 'interact' as Mode,
-  showComments: true,
+  mode: 'interact' as ViewerMode,
+  tool: 'rect' as MarkupTool | 'select',
+  color: MARKUP_COLORS[0] as MarkupColor,
+  stroke: 4 as MarkupStroke,
+  showMarkups: true,
   showResolved: false,
   panelOpen: false,
-  openThreadId: null as string | null,
-  draft: null as Draft | null,
-  filters: DEFAULT_THREAD_FILTERS,
+  selectedId: null as string | null,
   device: DEFAULT_DEVICE,
   fit: true,
   pageId: null as string | null,
 };
 
+const HIDDEN = { showMarkups: false, mode: 'interact' as ViewerMode, selectedId: null };
+
 export const useUiStore = create<UiState>()((set) => ({
   ...initial,
   toolbarCollapsed: readToolbarCollapsed(),
-  setMode: (mode) => set(mode === 'interact' ? { mode, draft: null } : { mode }),
-  toggleMode: () =>
-    set((s) => (s.mode === 'comment' ? { mode: 'interact', draft: null } : { mode: 'comment' })),
-  setShowComments: (showComments) =>
-    set(showComments ? { showComments } : { showComments, openThreadId: null, draft: null }),
-  toggleShowComments: () =>
-    set((s) =>
-      s.showComments
-        ? { showComments: false, openThreadId: null, draft: null }
-        : { showComments: true },
-    ),
+  setMode: (mode) => set({ mode }),
+  toggleMode: () => set((s) => ({ mode: s.mode === 'markup' ? 'interact' : 'markup' })),
+  setTool: (tool) => set({ tool }),
+  setColor: (color) => set({ color }),
+  setStroke: (stroke) => set({ stroke }),
+  select: (selectedId) => set({ selectedId }),
+  setShowMarkups: (showMarkups) => set(showMarkups ? { showMarkups } : HIDDEN),
+  toggleShowMarkups: () => set((s) => (s.showMarkups ? HIDDEN : { showMarkups: true })),
   setShowResolved: (showResolved) => set({ showResolved }),
   setPanelOpen: (panelOpen) => set({ panelOpen }),
-  openThread: (id) => set({ openThreadId: id, draft: null }),
-  setDraft: (draft) => set({ draft, openThreadId: null }),
-  clearDraft: () => set({ draft: null }),
-  setFilters: (patch) => set((s) => ({ filters: { ...s.filters, ...patch } })),
   setDevice: (device) => set({ device }),
   setFit: (fit) => set({ fit }),
   setToolbarCollapsed: (toolbarCollapsed) => {

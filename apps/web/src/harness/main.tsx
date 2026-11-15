@@ -56,8 +56,6 @@ interface HarnessApi {
   vector: VectorResult[];
   /** 主執行緒 setInterval(50ms) 的最大延遲（ms） */
   maxJitterMs: number;
-  /** 通過 gate 的 pick（最近一筆）文字內容 */
-  lastPick: { css: string; snapshot: string; tag: string } | null;
   send: (msg: ParentToFrame) => boolean;
   resetStats: () => void;
 }
@@ -75,7 +73,6 @@ const api: HarnessApi = {
   toastsSuppressed: 0,
   vector: [],
   maxJitterMs: 0,
-  lastPick: null,
   send: () => false,
   resetStats() {
     api.counts = {};
@@ -84,7 +81,6 @@ const api: HarnessApi = {
     api.toastsSuppressed = 0;
     api.vector = [];
     api.maxJitterMs = 0;
-    api.lastPick = null;
   },
 };
 window.__harness = api;
@@ -124,11 +120,8 @@ function Harness() {
     api.counts[msg.type] = (api.counts[msg.type] ?? 0) + 1;
     handleRef.current(msg);
     if (msg.type === 'ready') {
-      // parent 只送 init 與 trackAnchors（只有 thread id）；comment 內文、作者、token 永遠不送。
-      const first = PARENT_STATE.threads[0];
-      sendRef.current({ v: PROTOCOL_VERSION, type: 'init', mode: 'interact' });
-      if (first)
-        sendRef.current({ v: PROTOCOL_VERSION, type: 'trackAnchors', threadIds: [first.id] });
+      // parent 只送 init；comment 內文、作者、token 永遠不送。
+      sendRef.current({ v: PROTOCOL_VERSION, type: 'init' });
     } else if (msg.type === 'dialog') {
       // 規格：parent 以純文字 toast 顯示；toast 另外節流（V11）。
       const now = Date.now();
@@ -138,12 +131,6 @@ function Harness() {
       } else {
         api.toastsSuppressed += 1;
       }
-    } else if (msg.type === 'pick') {
-      api.lastPick = {
-        css: (msg.draft.selectors.css ?? '').slice(0, 1024),
-        snapshot: msg.draft.snapshot.text,
-        tag: msg.draft.snapshot.tag,
-      };
     }
   }, []);
 
@@ -175,7 +162,6 @@ function Harness() {
 
   const { state } = watchdog;
   const toasts = api.toasts.slice(-MAX_TOASTS_SHOWN);
-  const pick = api.lastPick;
 
   return (
     <main className="p-4 text-sm">
@@ -207,16 +193,6 @@ function Harness() {
             {t}
           </div>
         ))}
-      </section>
-
-      <section aria-label="pick" className="my-2">
-        <div>
-          pick 選擇器（純文字）：<code data-testid="pick-css">{pick?.css ?? ''}</code>
-        </div>
-        <div>
-          pick 快照：
-          <code data-testid="pick-snapshot">{pick ? `${pick.tag}: ${pick.snapshot}` : ''}</code>
-        </div>
       </section>
 
       <section aria-label="comments" className="my-2">

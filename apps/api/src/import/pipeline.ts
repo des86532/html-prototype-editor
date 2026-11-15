@@ -1,7 +1,7 @@
 import { AppError, UPLOAD_LIMITS } from '@hpe/shared';
 import { eq, inArray, max, sql } from 'drizzle-orm';
 import mime from 'mime-types';
-import type { Db, DbTx } from '../db/client.js';
+import type { Db } from '../db/client.js';
 import { assets, projects, prototypeVersions } from '../db/schema.js';
 import { newContentKey, newId, sha256Hex } from '../ids.js';
 import type { StorageAdapter } from '../storage/types.js';
@@ -77,13 +77,9 @@ export async function importBundle(
     projectId: string;
     files: BundleFile[];
     entryPage?: string | undefined;
-    /** 已驗證的 CDN allowlist origin（Review Package 再匯入時帶入） */
-    cdnAllowlist?: string[];
-    /** 在建立版本的同一個 transaction 內執行（例如建立討論串）。 */
-    afterInsert?: (tx: DbTx, ctx: { versionId: string; projectId: string }) => Promise<void>;
   },
 ): Promise<ImportResult> {
-  const cdnAllowlist = input.cdnAllowlist ?? [];
+  const cdnAllowlist: string[] = [];
   const { report, pages } = analyzeBundle(input.files, cdnAllowlist);
   const decision = detectEntry(pages, input.entryPage);
 
@@ -122,7 +118,6 @@ export async function importBundle(
       entryCandidates: decision.candidates,
     });
     await tx.insert(assets).values(rows.map((r) => ({ ...r, versionId })));
-    await input.afterInsert?.(tx, { versionId, projectId: input.projectId });
   });
   return { versionId };
 }
