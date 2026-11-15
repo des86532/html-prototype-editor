@@ -26,7 +26,13 @@ import { messageForError } from '@/lib/errorMessages';
 import { truncate } from '@/lib/format';
 import { useElementSize } from '@/lib/useElementSize';
 import { useLatest } from '@/lib/useLatest';
+import {
+  CommentAssistContext,
+  type CommentAssist,
+  type MentionCandidate,
+} from '@/features/comments/CommentAssistContext';
 import { canComment, canManageMarkup, type ThreadActor } from '@/features/comments/permissions';
+import { useParticipants } from '@/features/comments/useParticipants';
 import { ThreadPopover } from '@/features/comments/ThreadPopover';
 import { useViewerShortcuts } from '@/features/comments/shortcuts';
 import {
@@ -131,6 +137,7 @@ export function PrototypeViewer({
     me: actor.me,
     buildThreadUrl,
   });
+  const participants = useParticipants(version.id, api);
   const history = useMarkupHistory(version.id);
   const threadsRef = useLatest(threads);
 
@@ -249,6 +256,25 @@ export function PrototypeViewer({
     },
     onResync: () => void qc.invalidateQueries({ queryKey: threadsKey(version.id) }),
   });
+  const assist = useMemo<CommentAssist>(() => {
+    const meId = actor.me ? authorId(actor.me) : null;
+    const seen = new Set<string>();
+    const candidates: MentionCandidate[] = [];
+    const add = (id: string, name: string) => {
+      if (seen.has(id) || id === meId || name.trim() === '') return;
+      seen.add(id);
+      candidates.push({ id, name });
+    };
+    for (const a of participants.data ?? []) add(authorId(a), a.name);
+    for (const t of threads) {
+      add(authorId(t.createdBy), t.createdBy.name);
+      for (const c of t.comments) add(authorId(c.author), c.author.name);
+    }
+    for (const p of liveSession.peers.values()) if (p.colorKey !== p.id) add(p.colorKey, p.name);
+    const names = candidates.map((c) => c.name);
+    if (actor.me) names.push(actor.me.name);
+    return { candidates, names };
+  }, [actor.me, participants.data, threads, liveSession.peers]);
   useLayoutEffect(() => {
     scrollRef.current = scroll;
     sendCursorRef.current = liveSession.sendCursor;
@@ -549,235 +575,237 @@ export function PrototypeViewer({
   );
 
   return (
-    <div className="flex h-dvh flex-col bg-stage" data-testid="prototype-viewer">
-      {!ui.focusMode && (
-        <>
-          <header className="flex h-12 items-center gap-3 border-b border-line bg-surface px-3">
-            <LogoMark className="size-5 shrink-0" />
-            {headerExtra}
-            <h1 className="flex min-w-0 items-center gap-2 text-sm font-semibold text-ink">
-              {projectName && <span className="truncate">{projectName}</span>}
-              <span className="rounded border border-line px-1.5 font-mono text-xs font-medium text-ink-2">
-                v{version.number}
+    <CommentAssistContext.Provider value={assist}>
+      <div className="flex h-dvh flex-col bg-stage" data-testid="prototype-viewer">
+        {!ui.focusMode && (
+          <>
+            <header className="flex h-12 items-center gap-3 border-b border-line bg-surface px-3">
+              <LogoMark className="size-5 shrink-0" />
+              {headerExtra}
+              <h1 className="flex min-w-0 items-center gap-2 text-sm font-semibold text-ink">
+                {projectName && <span className="truncate">{projectName}</span>}
+                <span className="rounded border border-line px-1.5 font-mono text-xs font-medium text-ink-2">
+                  v{version.number}
+                </span>
+              </h1>
+              <span role="note" className="chip chip-warn">
+                不受信任內容
               </span>
-            </h1>
-            <span role="note" className="chip chip-warn">
-              不受信任內容
-            </span>
-            <div className="ml-auto flex items-center gap-2">
-              {presence}
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                aria-label="全畫面（F）"
-                title="全畫面（F）"
-                onClick={() => ui.setFocusMode(true)}
-              >
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 16 16"
-                  className="size-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" />
-                </svg>{' '}
-                全畫面
-              </button>
-            </div>
-          </header>
-          <DeviceToolbar
-            device={ui.device}
-            onDevice={ui.setDevice}
-            zoom={ui.zoom}
-            onZoomIn={zoom.zoomIn}
-            onZoomOut={zoom.zoomOut}
-            onFit={zoom.zoomFit}
-            scale={scale}
-            mode={mode}
-            onMode={ui.setMode}
-            canMarkup={writable}
-            showMarkups={ui.showMarkups}
-            onShowMarkups={ui.setShowMarkups}
-            showResolved={ui.showResolved}
-            onShowResolved={ui.setShowResolved}
-            panelOpen={ui.panelOpen}
-            onPanelOpen={ui.setPanelOpen}
-            markupCount={markupCount}
-            pages={version.pages}
-            pageId={readyPage ?? loadedPage}
-            onPage={reloadFrame}
-            onExport={onExport}
-          />
-        </>
-      )}
-      <div className="flex min-h-0 flex-1">
-        <div className="relative min-w-0 flex-1">
-          <div
-            ref={setContainerEl}
-            className="stage-grid absolute inset-0 overflow-auto p-8"
-            data-testid="viewer-container"
-          >
-            <div
-              ref={setStageEl}
-              className="relative mx-auto"
-              style={{ width: width * scale, height: page.pageHeight * scale }}
-            >
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute -top-7 left-0 font-mono text-[11px] whitespace-nowrap text-measure"
-              >
-                {width} × {height}
-                {page.pageHeight > height ? ` · 頁長 ${page.pageHeight}` : ''} ·{' '}
-                {Math.round(scale * 100)}%
-              </div>
-              <CropMarks />
-              <SandboxFrame
-                key={frameKey}
-                ref={setIframe}
-                src={src}
-                width={width}
-                height={page.pageHeight}
-                scale={scale}
-              />
-              <MarkupCanvas
-                threads={visible}
-                scroll={{ x: scroll?.x ?? 0, y: scroll?.y ?? 0 }}
-                frameSize={{ w: width, h: page.pageHeight }}
-                scale={scale}
-                mode={mode}
-                tool={ui.tool}
-                color={ui.color}
-                stroke={ui.stroke}
-                selectedId={ui.selectedId}
-                canManage={canManage}
-                onSelect={ui.select}
-                onCreate={onCreate}
-                onMove={onMove}
-                onScrollBy={onScrollBy}
-                onZoomWheel={zoom.wheelAt}
-                onPointer={liveSession.sendCursor}
-                onSelectedAnchor={setSelectedAnchorEl}
-                onRootEl={setCanvasEl}
-              />
-              <CursorLayer
-                peers={liveSession.peers}
-                selfId={liveSession.selfId}
-                pageId={readyPage}
-                width={width}
-                scroll={{ x: scroll?.x ?? 0, y: scroll?.y ?? 0 }}
-                frameSize={{ w: width, h: page.pageHeight }}
-                scale={scale}
-              />
-              {selected && (
-                <ThreadPopover
-                  thread={selected}
-                  referenceEl={selectedAnchorEl}
-                  boundary={containerEl}
-                  hidden={outOfView}
-                  actor={actor}
-                  actions={actions}
-                  canDelete={canManage(selected)}
-                  onDeleteMarkup={() => deleteMarkup(selected)}
-                  ignoreOutside={canvasEl}
-                  onClose={(reason) => {
-                    const id = selected.id;
-                    useUiStore.getState().select(null);
-                    if (reason === 'escape') focusBadge(id);
-                  }}
-                />
-              )}
-              <FrameWatchdog
-                state={watchdog.state}
-                onStop={watchdog.stop}
-                onReload={() => reloadFrame(loadedPage)}
-              />
-            </div>
-            {(toast || warning) && (
-              <div
-                role="status"
-                className="fixed bottom-4 left-1/2 z-50 max-w-md -translate-x-1/2 rounded-md bg-ink px-3 py-2 text-sm text-white shadow-lg"
-              >
-                {toast ?? warning}
-              </div>
-            )}
-          </div>
-          {ui.focusMode && (
-            <div
-              role="toolbar"
-              aria-label="全畫面工具列"
-              className="card absolute right-3 top-3 z-20 flex items-center gap-2 px-2 py-1 shadow-lg"
-            >
-              <LogoMark className="size-4" />
-              {presence}
-              {writable && (
+              <div className="ml-auto flex items-center gap-2">
+                {presence}
                 <button
                   type="button"
-                  className="btn btn-secondary btn-sm btn-toggle"
-                  aria-pressed={mode === 'markup'}
-                  data-accent=""
-                  onClick={ui.toggleMode}
+                  className="btn btn-ghost btn-sm"
+                  aria-label="全畫面（F）"
+                  title="全畫面（F）"
+                  onClick={() => ui.setFocusMode(true)}
                 >
-                  標記（C）
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 16 16"
+                    className="size-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" />
+                  </svg>{' '}
+                  全畫面
                 </button>
-              )}
-              {zoomControls}
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                aria-label="離開全畫面（F）"
-                title="離開全畫面（F）"
-                onClick={() => ui.setFocusMode(false)}
+              </div>
+            </header>
+            <DeviceToolbar
+              device={ui.device}
+              onDevice={ui.setDevice}
+              zoom={ui.zoom}
+              onZoomIn={zoom.zoomIn}
+              onZoomOut={zoom.zoomOut}
+              onFit={zoom.zoomFit}
+              scale={scale}
+              mode={mode}
+              onMode={ui.setMode}
+              canMarkup={writable}
+              showMarkups={ui.showMarkups}
+              onShowMarkups={ui.setShowMarkups}
+              showResolved={ui.showResolved}
+              onShowResolved={ui.setShowResolved}
+              panelOpen={ui.panelOpen}
+              onPanelOpen={ui.setPanelOpen}
+              markupCount={markupCount}
+              pages={version.pages}
+              pageId={readyPage ?? loadedPage}
+              onPage={reloadFrame}
+              onExport={onExport}
+            />
+          </>
+        )}
+        <div className="flex min-h-0 flex-1">
+          <div className="relative min-w-0 flex-1">
+            <div
+              ref={setContainerEl}
+              className="stage-grid absolute inset-0 overflow-auto p-8"
+              data-testid="viewer-container"
+            >
+              <div
+                ref={setStageEl}
+                className="relative mx-auto"
+                style={{ width: width * scale, height: page.pageHeight * scale }}
               >
-                <svg
+                <div
                   aria-hidden="true"
-                  viewBox="0 0 16 16"
-                  className="size-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                  className="pointer-events-none absolute -top-7 left-0 font-mono text-[11px] whitespace-nowrap text-measure"
                 >
-                  <path d="M6 2v4H2M14 6h-4V2M10 14v-4h4M2 10h4v4" />
-                </svg>
-              </button>
+                  {width} × {height}
+                  {page.pageHeight > height ? ` · 頁長 ${page.pageHeight}` : ''} ·{' '}
+                  {Math.round(scale * 100)}%
+                </div>
+                <CropMarks />
+                <SandboxFrame
+                  key={frameKey}
+                  ref={setIframe}
+                  src={src}
+                  width={width}
+                  height={page.pageHeight}
+                  scale={scale}
+                />
+                <MarkupCanvas
+                  threads={visible}
+                  scroll={{ x: scroll?.x ?? 0, y: scroll?.y ?? 0 }}
+                  frameSize={{ w: width, h: page.pageHeight }}
+                  scale={scale}
+                  mode={mode}
+                  tool={ui.tool}
+                  color={ui.color}
+                  stroke={ui.stroke}
+                  selectedId={ui.selectedId}
+                  canManage={canManage}
+                  onSelect={ui.select}
+                  onCreate={onCreate}
+                  onMove={onMove}
+                  onScrollBy={onScrollBy}
+                  onZoomWheel={zoom.wheelAt}
+                  onPointer={liveSession.sendCursor}
+                  onSelectedAnchor={setSelectedAnchorEl}
+                  onRootEl={setCanvasEl}
+                />
+                <CursorLayer
+                  peers={liveSession.peers}
+                  selfId={liveSession.selfId}
+                  pageId={readyPage}
+                  width={width}
+                  scroll={{ x: scroll?.x ?? 0, y: scroll?.y ?? 0 }}
+                  frameSize={{ w: width, h: page.pageHeight }}
+                  scale={scale}
+                />
+                {selected && (
+                  <ThreadPopover
+                    thread={selected}
+                    referenceEl={selectedAnchorEl}
+                    boundary={containerEl}
+                    hidden={outOfView}
+                    actor={actor}
+                    actions={actions}
+                    canDelete={canManage(selected)}
+                    onDeleteMarkup={() => deleteMarkup(selected)}
+                    ignoreOutside={canvasEl}
+                    onClose={(reason) => {
+                      const id = selected.id;
+                      useUiStore.getState().select(null);
+                      if (reason === 'escape') focusBadge(id);
+                    }}
+                  />
+                )}
+                <FrameWatchdog
+                  state={watchdog.state}
+                  onStop={watchdog.stop}
+                  onReload={() => reloadFrame(loadedPage)}
+                />
+              </div>
+              {(toast || warning) && (
+                <div
+                  role="status"
+                  className="fixed bottom-4 left-1/2 z-50 max-w-md -translate-x-1/2 rounded-md bg-ink px-3 py-2 text-sm text-white shadow-lg"
+                >
+                  {toast ?? warning}
+                </div>
+              )}
             </div>
-          )}
-          {mode === 'markup' && (
-            <MarkupTools
-              tool={ui.tool}
-              onTool={ui.setTool}
-              color={ui.color}
-              onColor={ui.setColor}
-              stroke={ui.stroke}
-              onStroke={ui.setStroke}
-              canUndo={history.canUndo}
-              onUndo={undo}
+            {ui.focusMode && (
+              <div
+                role="toolbar"
+                aria-label="全畫面工具列"
+                className="card absolute right-3 top-3 z-20 flex items-center gap-2 px-2 py-1 shadow-lg"
+              >
+                <LogoMark className="size-4" />
+                {presence}
+                {writable && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm btn-toggle"
+                    aria-pressed={mode === 'markup'}
+                    data-accent=""
+                    onClick={ui.toggleMode}
+                  >
+                    標記（C）
+                  </button>
+                )}
+                {zoomControls}
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  aria-label="離開全畫面（F）"
+                  title="離開全畫面（F）"
+                  onClick={() => ui.setFocusMode(false)}
+                >
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 16 16"
+                    className="size-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M6 2v4H2M14 6h-4V2M10 14v-4h4M2 10h4v4" />
+                  </svg>
+                </button>
+              </div>
+            )}
+            {mode === 'markup' && (
+              <MarkupTools
+                tool={ui.tool}
+                onTool={ui.setTool}
+                color={ui.color}
+                onColor={ui.setColor}
+                stroke={ui.stroke}
+                onStroke={ui.setStroke}
+                canUndo={history.canUndo}
+                onUndo={undo}
+              />
+            )}
+            <WidthChips
+              threads={threads}
+              pageId={readyPage}
+              width={width}
+              showResolved={ui.showResolved}
+              onPick={applyWidth}
+            />
+          </div>
+          {ui.panelOpen && (
+            <MarkupPanel
+              threads={threads}
+              pages={pagePaths}
+              showResolved={ui.showResolved}
+              selectedId={ui.selectedId}
+              onSelect={jumpTo}
+              onClose={() => ui.setPanelOpen(false)}
             />
           )}
-          <WidthChips
-            threads={threads}
-            pageId={readyPage}
-            width={width}
-            showResolved={ui.showResolved}
-            onPick={applyWidth}
-          />
         </div>
-        {ui.panelOpen && (
-          <MarkupPanel
-            threads={threads}
-            pages={pagePaths}
-            showResolved={ui.showResolved}
-            selectedId={ui.selectedId}
-            onSelect={jumpTo}
-            onClose={() => ui.setPanelOpen(false)}
-          />
-        )}
       </div>
-    </div>
+    </CommentAssistContext.Provider>
   );
 }

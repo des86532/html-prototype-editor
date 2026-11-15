@@ -5,6 +5,8 @@ import {
   CreateThreadBodySchema,
   UpdateCommentBodySchema,
   UpdateThreadBodySchema,
+  type Author,
+  type ParticipantsResponse,
   type Thread,
   type ThreadResponse,
   type ThreadsResponse,
@@ -22,7 +24,7 @@ import {
 import { actorLabel } from '../auth/principal.js';
 import type { AppContext } from '../context.js';
 import type { DbLike } from '../db/client.js';
-import { comments, threadNumberSeq, threads } from '../db/schema.js';
+import { comments, threadNumberSeq, threads, users } from '../db/schema.js';
 import { authorId, toThread } from '../dto.js';
 import { idParam, parseWith } from '../http.js';
 import { newId } from '../ids.js';
@@ -93,6 +95,40 @@ export function registerThreadRoutes(app: FastifyInstance, ctx: AppContext, limi
   app.get(API_ROUTES.listThreads.path, async (req): Promise<ThreadsResponse> => {
     const { version } = await accessVersion(ctx, req, idParam(req.params));
     return { threads: await listVersionThreads(ctx.db, version.id) };
+  });
+
+  app.get(API_ROUTES.listParticipants.path, async (req): Promise<ParticipantsResponse> => {
+    const { project } = await accessVersion(ctx, req, idParam(req.params));
+    const [owner] = await ctx.db
+      .select({ id: users.id, name: users.name })
+      .from(users)
+      .where(eq(users.id, project.ownerId));
+    const [threadAuthors, commentAuthors] = await Promise.all([
+      ctx.db
+        .select({ author: threads.createdBy, at: threads.createdAt })
+        .from(threads)
+        .where(eq(threads.projectId, project.id)),
+      ctx.db
+        .select({ author: comments.author, at: comments.createdAt })
+        .from(comments)
+        .innerJoin(threads, eq(threads.id, comments.threadId))
+        .where(eq(threads.projectId, project.id)),
+    ]);
+    // 同一人名字可能改過：取最新活動的名字，排序也依最新活動時間
+    const latest = new Map<string, { author: Author; at: Date }>();
+    for (const { author, at } of [...threadAuthors, ...commentAuthors]) {
+      const id = authorId(author);
+      const prev = latest.get(id);
+      if (!prev || at > prev.at) latest.set(id, { author, at });
+    }
+    if (owner) latest.delete(owner.id);
+    const active = [...latest.values()]
+      .sort((a, b) => b.at.getTime() - a.at.getTime())
+      .map((x) => x.author);
+    const participants: Author[] = owner
+      ? [{ kind: 'user', userId: owner.id, name: owner.name }, ...active]
+      : active;
+    return { participants: participants.slice(0, 200) };
   });
 
   app.post(

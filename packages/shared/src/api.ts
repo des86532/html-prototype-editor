@@ -53,6 +53,10 @@ export interface VersionDetailResponse {
 export interface ThreadsResponse {
   threads: Thread[];
 }
+/** 可在留言中 @ 提及的人：擁有者在前，其後依最新活動時間由新到舊 */
+export interface ParticipantsResponse {
+  participants: Author[];
+}
 export interface ThreadResponse {
   thread: Thread;
 }
@@ -119,6 +123,7 @@ export const API_ROUTES = {
   rotateContentKey: { method: 'POST', path: '/versions/:id/rotate-content-key' },
   liveVersion: { method: 'GET', path: '/versions/:id/live' },
   listThreads: { method: 'GET', path: '/versions/:id/threads' },
+  listParticipants: { method: 'GET', path: '/versions/:id/participants' },
   createThread: { method: 'POST', path: '/versions/:id/threads' },
   updateThread: { method: 'PATCH', path: '/threads/:id' },
   deleteThread: { method: 'DELETE', path: '/threads/:id' },

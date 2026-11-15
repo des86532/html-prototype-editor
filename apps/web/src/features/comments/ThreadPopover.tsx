@@ -126,7 +126,7 @@ export function ThreadPopover({
       ) : (
         <Composer
           label="新增說明"
-          placeholder="說明這個標記…（選填，支援 Markdown）"
+          placeholder="說明這個標記…（選填，# 選顏色、@ 提及）"
           submitLabel="送出"
           autoFocus
           onSubmit={(b) => actions.onReply(thread, b)}

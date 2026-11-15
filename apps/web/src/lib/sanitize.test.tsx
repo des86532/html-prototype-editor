@@ -109,3 +109,27 @@ describe('installTrustedTypesPolicy', () => {
     expect(() => rules.createScriptURL!('https://x')).toThrow();
   });
 });
+
+describe('SafeMarkdown decorations', () => {
+  it('turns color codes outside code spans into chips; code keeps plain text', () => {
+    const root = renderMd('a `#fff` b #000');
+    expect(Array.from(root.querySelectorAll('[data-color]')).map((e) => e.textContent)).toEqual([
+      '#000',
+    ]);
+    expect(root.querySelector('code')?.textContent).toBe('#fff');
+  });
+
+  it('keeps raw HTML as text and still decorates around it', () => {
+    const root = renderMd('<script>alert(1)</script> #fff');
+    expect(root.querySelector('script')).toBeNull();
+    expect(root.textContent).toContain('<script>alert(1)</script>');
+    expect(root.querySelectorAll('[data-color]')).toHaveLength(1);
+  });
+
+  it('highlights only the given mention names', () => {
+    const { container } = render(<SafeMarkdown source="@Gina 看 @Bob" mentionNames={['Gina']} />);
+    expect(
+      Array.from(container.querySelectorAll('[data-mention]')).map((e) => e.textContent),
+    ).toEqual(['@Gina']);
+  });
+});

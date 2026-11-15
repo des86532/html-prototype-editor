@@ -182,6 +182,7 @@ require-trusted-types-for 'script'
   - 點擊列表項目：切換到對應頁面和寬度 preset，送 `scrollToAnchor`，再開啟該 pin 的卡片。
   - `hidden` 和 `orphaned` 狀態的討論串只能從面板查看與回覆，面板內直接展開討論內容。
 - **P1，移動 pin**：作者或擁有者可以拖曳 pin 重新指定位置。parent 送 `describeAt`，agent 回 `described`（新 Anchor），使用者放開後經 API `PATCH /threads/:id/anchor` 更新。
+- **留言輸入小工具**：輸入 `#` 跳出色票（9 色加系統取色器），顯示時 `#rgb`／`#rrggbb` 以該色為底色的標籤；輸入 `@` 列出可提及的人（擁有者、在專案留過言或畫過標記的人、目前線上且有身分的人；`GET /versions/:id/participants`），顯示時以醒目樣式呈現。只做顯示，不送通知；名字相同的兩個人無法區分。
 
 **互動模式**
 - 預設是 **Interact 模式**，可以正常操作 prototype。

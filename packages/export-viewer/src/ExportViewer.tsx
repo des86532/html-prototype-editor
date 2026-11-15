@@ -10,6 +10,10 @@ import {
 } from '@hpe/shared';
 import { annotationsToThreads, injectAgent } from '@hpe/exporter/browser';
 import type { SingleFilePayload } from '@hpe/exporter/browser';
+import {
+  CommentAssistContext,
+  type CommentAssist,
+} from '@web/features/comments/CommentAssistContext';
 import { ThreadPopover } from '@web/features/comments/ThreadPopover';
 import { useViewerShortcuts } from '@web/features/comments/shortcuts';
 import { MarkupCanvas } from '@web/features/markup/MarkupCanvas';
@@ -45,6 +49,15 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
   const version = annotations.version;
 
   const threads = useMemo<Thread[]>(() => annotationsToThreads(annotations), [annotations]);
+  // 唯讀：沒有輸入框，只需要顯示 @提及時醒目的名字
+  const assist = useMemo<CommentAssist>(() => {
+    const names = new Set<string>();
+    for (const t of threads) {
+      names.add(t.createdBy.name);
+      for (const c of t.comments) names.add(c.author.name);
+    }
+    return { candidates: [], names: [...names] };
+  }, [threads]);
   const pagePaths = useMemo(() => Object.keys(pages), [pages]);
   const pageInfos = useMemo(
     () => version.pages.filter((p) => p.path in pages),
@@ -284,135 +297,137 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
   );
 
   return (
-    <div className="flex h-dvh flex-col bg-stage" data-testid="export-viewer">
-      <header className="flex items-center gap-3 border-b border-line bg-surface px-3 py-2">
-        <LogoMark className="size-5 shrink-0" />
-        <h1 className="truncate text-sm font-semibold">
-          {meta.projectName} · v{meta.versionNumber}
-        </h1>
-        <span role="note" className="chip chip-muted">
-          唯讀匯出檔 · 無網路
-        </span>
-      </header>
-      <ExportToolbar
-        device={ui.device}
-        onDevice={ui.setDevice}
-        zoom={ui.zoom}
-        onZoomIn={zoom.zoomIn}
-        onZoomOut={zoom.zoomOut}
-        onFit={zoom.zoomFit}
-        scale={scale}
-        showMarkups={ui.showMarkups}
-        onShowMarkups={ui.setShowMarkups}
-        showResolved={ui.showResolved}
-        onShowResolved={ui.setShowResolved}
-        panelOpen={ui.panelOpen}
-        onPanelOpen={ui.setPanelOpen}
-        markupCount={markupCount}
-        pages={pageInfos}
-        pageId={readyPage ?? loadedPage}
-        onPage={reloadFrame}
-      />
-      <div className="flex min-h-0 flex-1">
-        <div className="relative min-w-0 flex-1">
-          <div
-            ref={setContainerEl}
-            className="stage-grid h-full overflow-auto p-4"
-            data-testid="viewer-container"
-          >
+    <CommentAssistContext.Provider value={assist}>
+      <div className="flex h-dvh flex-col bg-stage" data-testid="export-viewer">
+        <header className="flex items-center gap-3 border-b border-line bg-surface px-3 py-2">
+          <LogoMark className="size-5 shrink-0" />
+          <h1 className="truncate text-sm font-semibold">
+            {meta.projectName} · v{meta.versionNumber}
+          </h1>
+          <span role="note" className="chip chip-muted">
+            唯讀匯出檔 · 無網路
+          </span>
+        </header>
+        <ExportToolbar
+          device={ui.device}
+          onDevice={ui.setDevice}
+          zoom={ui.zoom}
+          onZoomIn={zoom.zoomIn}
+          onZoomOut={zoom.zoomOut}
+          onFit={zoom.zoomFit}
+          scale={scale}
+          showMarkups={ui.showMarkups}
+          onShowMarkups={ui.setShowMarkups}
+          showResolved={ui.showResolved}
+          onShowResolved={ui.setShowResolved}
+          panelOpen={ui.panelOpen}
+          onPanelOpen={ui.setPanelOpen}
+          markupCount={markupCount}
+          pages={pageInfos}
+          pageId={readyPage ?? loadedPage}
+          onPage={reloadFrame}
+        />
+        <div className="flex min-h-0 flex-1">
+          <div className="relative min-w-0 flex-1">
             <div
-              ref={setStageEl}
-              className="relative mx-auto"
-              style={{ width: width * scale, height: page.pageHeight * scale }}
+              ref={setContainerEl}
+              className="stage-grid h-full overflow-auto p-4"
+              data-testid="viewer-container"
             >
-              <ExportSandboxFrame
-                key={frameKey}
-                ref={setIframe}
-                srcDoc={srcDoc}
-                width={width}
-                height={page.pageHeight}
-                scale={scale}
-              />
-              <MarkupCanvas
-                threads={visible}
-                scroll={scroll ?? { x: 0, y: 0 }}
-                frameSize={{ w: width, h: page.pageHeight }}
-                scale={scale}
-                mode="interact"
-                tool="select"
-                color={ui.color}
-                stroke={ui.stroke}
-                selectedId={ui.selectedId}
-                canManage={cannotManage}
-                onSelect={ui.select}
-                onCreate={noop}
-                onMove={noop}
-                onScrollBy={(dx, dy) => {
-                  const rest = zoom.panBy(dx, dy);
-                  if (rest) send({ v: PROTOCOL_VERSION, type: 'scrollBy', ...rest });
-                }}
-                onZoomWheel={zoom.wheelAt}
-                onSelectedAnchor={setSelectedAnchorEl}
-                onRootEl={setCanvasEl}
-              />
-              {selected && (
-                <ThreadPopover
-                  thread={selected}
-                  referenceEl={selectedAnchorEl}
-                  boundary={containerEl}
-                  hidden={outOfView}
-                  actor={READ_ONLY_ACTOR}
-                  actions={READ_ONLY_ACTIONS}
-                  canDelete={false}
-                  onDeleteMarkup={noop}
-                  ignoreOutside={canvasEl}
-                  onClose={(reason) => {
-                    if (reason === 'outside') ui.select(null);
-                    else escape();
-                  }}
+              <div
+                ref={setStageEl}
+                className="relative mx-auto"
+                style={{ width: width * scale, height: page.pageHeight * scale }}
+              >
+                <ExportSandboxFrame
+                  key={frameKey}
+                  ref={setIframe}
+                  srcDoc={srcDoc}
+                  width={width}
+                  height={page.pageHeight}
+                  scale={scale}
                 />
-              )}
-              <FrameWatchdog
-                state={watchdog.state}
-                onStop={watchdog.stop}
-                onReload={() => reloadFrame(loadedPage)}
-              />
+                <MarkupCanvas
+                  threads={visible}
+                  scroll={scroll ?? { x: 0, y: 0 }}
+                  frameSize={{ w: width, h: page.pageHeight }}
+                  scale={scale}
+                  mode="interact"
+                  tool="select"
+                  color={ui.color}
+                  stroke={ui.stroke}
+                  selectedId={ui.selectedId}
+                  canManage={cannotManage}
+                  onSelect={ui.select}
+                  onCreate={noop}
+                  onMove={noop}
+                  onScrollBy={(dx, dy) => {
+                    const rest = zoom.panBy(dx, dy);
+                    if (rest) send({ v: PROTOCOL_VERSION, type: 'scrollBy', ...rest });
+                  }}
+                  onZoomWheel={zoom.wheelAt}
+                  onSelectedAnchor={setSelectedAnchorEl}
+                  onRootEl={setCanvasEl}
+                />
+                {selected && (
+                  <ThreadPopover
+                    thread={selected}
+                    referenceEl={selectedAnchorEl}
+                    boundary={containerEl}
+                    hidden={outOfView}
+                    actor={READ_ONLY_ACTOR}
+                    actions={READ_ONLY_ACTIONS}
+                    canDelete={false}
+                    onDeleteMarkup={noop}
+                    ignoreOutside={canvasEl}
+                    onClose={(reason) => {
+                      if (reason === 'outside') ui.select(null);
+                      else escape();
+                    }}
+                  />
+                )}
+                <FrameWatchdog
+                  state={watchdog.state}
+                  onStop={watchdog.stop}
+                  onReload={() => reloadFrame(loadedPage)}
+                />
+              </div>
             </div>
+            <WidthChips
+              threads={threads}
+              pageId={readyPage}
+              width={width}
+              showResolved={ui.showResolved}
+              onPick={(w, h) => {
+                const preset = DEVICE_PRESETS.find((p) => p.width === w);
+                ui.setDevice(
+                  preset
+                    ? { presetId: preset.id, width: preset.width, height: preset.height }
+                    : { presetId: 'custom', width: w, height: h },
+                );
+              }}
+            />
+            {toast && (
+              <div
+                role="status"
+                className="fixed bottom-4 left-1/2 z-50 max-w-md -translate-x-1/2 rounded-md bg-ink px-3 py-2 text-sm text-white shadow-lg"
+              >
+                {toast}
+              </div>
+            )}
           </div>
-          <WidthChips
-            threads={threads}
-            pageId={readyPage}
-            width={width}
-            showResolved={ui.showResolved}
-            onPick={(w, h) => {
-              const preset = DEVICE_PRESETS.find((p) => p.width === w);
-              ui.setDevice(
-                preset
-                  ? { presetId: preset.id, width: preset.width, height: preset.height }
-                  : { presetId: 'custom', width: w, height: h },
-              );
-            }}
-          />
-          {toast && (
-            <div
-              role="status"
-              className="fixed bottom-4 left-1/2 z-50 max-w-md -translate-x-1/2 rounded-md bg-ink px-3 py-2 text-sm text-white shadow-lg"
-            >
-              {toast}
-            </div>
+          {ui.panelOpen && (
+            <MarkupPanel
+              threads={threads}
+              pages={pagePaths}
+              showResolved={ui.showResolved}
+              selectedId={ui.selectedId}
+              onSelect={jumpTo}
+              onClose={() => ui.setPanelOpen(false)}
+            />
           )}
         </div>
-        {ui.panelOpen && (
-          <MarkupPanel
-            threads={threads}
-            pages={pagePaths}
-            showResolved={ui.showResolved}
-            selectedId={ui.selectedId}
-            onSelect={jumpTo}
-            onClose={() => ui.setPanelOpen(false)}
-          />
-        )}
       </div>
-    </div>
+    </CommentAssistContext.Provider>
   );
 }
