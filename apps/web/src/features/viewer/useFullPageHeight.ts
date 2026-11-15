@@ -17,6 +17,7 @@ export function useFullPageHeight(opts: { frameKey: number; width: number; devic
   const maxDocH = useRef(0);
   const firstAt = useRef(0);
   const settledRef = useRef(false);
+  const grewRef = useRef(false);
   const deviceHeightRef = useRef(deviceHeight);
   const resetKeyRef = useRef(resetKey);
 
@@ -34,6 +35,7 @@ export function useFullPageHeight(opts: { frameKey: number; width: number; devic
     deviceHeightRef.current = deviceHeight;
     resetKeyRef.current = resetKey;
     settledRef.current = false;
+    grewRef.current = false;
     maxDocH.current = 0;
     firstAt.current = 0;
     clear();
@@ -43,7 +45,18 @@ export function useFullPageHeight(opts: { frameKey: number; width: number; devic
   const onScrollMessage = useCallback(
     (m: { docH: number; vh: number }) => {
       const dh = deviceHeightRef.current;
-      if (settledRef.current || Math.round(m.vh) !== dh) return;
+      // 量到的不是裝置高度下的版面（含 iframe 已撐高之後的訊息）：忽略
+      if (Math.round(m.vh) !== dh) return;
+      if (settledRef.current) {
+        // 已定案但頁面其實沒有比裝置高（例如樣式表晚於第一次定案才載入）：
+        // iframe 仍是裝置高度，版面有效，頁面變長就重新量測；已撐高就不再追。
+        if (grewRef.current || m.docH <= dh) return;
+        settledRef.current = false;
+        maxDocH.current = 0;
+        firstAt.current = 0;
+        const key = resetKeyRef.current;
+        setState((s) => (s.resetKey === key ? { ...s, settled: false } : s));
+      }
       const now = Date.now();
       if (firstAt.current === 0) firstAt.current = now;
       maxDocH.current = Math.max(maxDocH.current, m.docH);
@@ -52,6 +65,7 @@ export function useFullPageHeight(opts: { frameKey: number; width: number; devic
         clear();
         settledRef.current = true;
         const h = Math.min(PAGE_HEIGHT_CAP, Math.max(dh, Math.ceil(maxDocH.current)));
+        grewRef.current = h > dh;
         setState((s) => (s.resetKey === key ? { resetKey: key, measured: h, settled: true } : s));
       };
       clear();
