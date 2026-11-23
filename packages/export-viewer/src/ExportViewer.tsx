@@ -419,7 +419,7 @@ export function ExportViewer({ payload }: { payload: SingleFilePayload }) {
           {ui.panelOpen && (
             <MarkupPanel
               threads={threads}
-              pages={pagePaths}
+              pages={pageInfos}
               showResolved={ui.showResolved}
               selectedId={ui.selectedId}
               onSelect={jumpTo}

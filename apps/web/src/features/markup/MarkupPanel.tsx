@@ -1,10 +1,11 @@
 import { useMemo, useRef } from 'react';
-import type { Thread } from '@hpe/shared';
+import type { PageInfo, Thread } from '@hpe/shared';
 import { firstLines, formatRelativeTime, truncate } from '@/lib/format';
 
 export interface MarkupPanelProps {
   threads: readonly Thread[];
-  pages: readonly string[];
+  /** 依此順序分組；有 `<title>` 的頁面以標題顯示，否則顯示路徑。 */
+  pages: readonly PageInfo[];
   showResolved: boolean;
   selectedId: string | null;
   onSelect: (thread: Thread) => void;
@@ -31,10 +32,16 @@ export function MarkupPanel({
       if (list) list.push(t);
       else byPage.set(t.markup.pageId, [t]);
     }
-    const order = [...pages, ...Array.from(byPage.keys()).filter((p) => !pages.includes(p))];
+    const titles = new Map(pages.map((p) => [p.path, p.title]));
+    const known = pages.map((p) => p.path);
+    const order = [...known, ...Array.from(byPage.keys()).filter((p) => !titles.has(p))];
     return order
       .filter((p) => byPage.has(p))
-      .map((p) => ({ page: p, items: byPage.get(p)!.sort((a, b) => a.number! - b.number!) }));
+      .map((p) => ({
+        page: p,
+        title: titles.get(p) ?? null,
+        items: byPage.get(p)!.sort((a, b) => a.number! - b.number!),
+      }));
   }, [threads, pages, showResolved]);
 
   const total = groups.reduce((n, g) => n + g.items.length, 0);
@@ -73,8 +80,18 @@ export function MarkupPanel({
         {total === 0 && <p className="px-2 py-4 text-sm text-ink-3">尚未有附說明的標記。</p>}
         {groups.map((g) => (
           <section key={g.page} className="mt-3 first:mt-0">
-            <h3 className="px-2 text-[11px] font-semibold tracking-wide text-ink-3 break-all">
-              {g.page}
+            <h3
+              title={g.page}
+              className="flex items-baseline gap-1.5 px-2 text-[11px] font-semibold tracking-wide text-ink-3"
+            >
+              {g.title ? (
+                <>
+                  <span className="min-w-0 truncate text-ink-2">{g.title}</span>
+                  <span className="min-w-0 flex-1 truncate font-mono font-normal">{g.page}</span>
+                </>
+              ) : (
+                <span className="break-all">{g.page}</span>
+              )}
             </h3>
             <ul>
               {g.items.map((t) => {

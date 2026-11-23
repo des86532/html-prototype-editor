@@ -114,7 +114,6 @@ export function PrototypeViewer({
   const writable = canComment(actor);
   const mode = writable ? ui.mode : 'interact';
 
-  const pagePaths = useMemo(() => version.pages.map((p) => p.path), [version.pages]);
   const [loadedPage, setLoadedPage] = useState(version.entryPage);
   const [frameKey, setFrameKey] = useState(0);
   const [iframe, setIframe] = useState<HTMLIFrameElement | null>(null);
@@ -797,7 +796,7 @@ export function PrototypeViewer({
           {ui.panelOpen && (
             <MarkupPanel
               threads={threads}
-              pages={pagePaths}
+              pages={version.pages}
               showResolved={ui.showResolved}
               selectedId={ui.selectedId}
               onSelect={jumpTo}
